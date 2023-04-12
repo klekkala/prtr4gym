@@ -1,4 +1,3 @@
-import time
 import sys
 from PIL import Image
 
@@ -9,8 +8,7 @@ from gymnasium.utils import seeding
 
 
 import numpy as np
-import config as app_config
-import math, cv2, h5py, argparse, csv, copy, time, os, shutil
+import math, argparse, csv, copy, time, os
 from pathlib import Path
 
 import argparse
@@ -115,18 +113,45 @@ if __name__ == "__main__":
     config = (
         get_trainable_cls(args.run)
             .get_default_config()
-            .environment("ALE/Pong-v5")
+            .environment("ALE/Pong-v5", clip_rewards = True)
             .framework(args.framework)
-            .rollouts(num_rollout_workers=1)
+            .rollouts(num_rollout_workers=8,
+                      rollout_fragment_length= 'auto',
+                      num_envs_per_worker = 6)
             .training(
             model={
                 "custom_model": "my_model",
                 "vf_share_layers": True,
-            }
+            },
+            lambda_ = 0.95,
+            kl_coeff = 0.5,
+            clip_param = 0.1,
+            vf_clip_param = 10.0,
+            entropy_coeff = 0.01,
+            train_batch_size=5000,
+            sgd_minibatch_size=500,
+            num_sgd_iter=10,
+
         )
             # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
-            .resources(num_gpus=int(os.environ.get("RLLIB_NUM_GPUS", "0")))
+            .resources(num_gpus=1,num_gpus_per_worker = 2, num_cpus_per_worker=12
     )
+    )
+    # config = {
+    #     "framework":torch,
+    #     "num_envs_per_worker": 1,
+    #     "rollout_fragment_length": 1000,
+    #     "train_batch_size": 10000,
+    #     "learning_rate": 0.0001,
+    #     "clip_param": 0.1,
+    #     "clip_rewards": True,
+    #     "num_sgd_iter": 10,
+    #     "num_workers": 8,
+    #     "num_gpus" : 1,
+    #     ""
+    #     "lambda": 0.95,
+    #     "kl_coeff": 0.5,
+    # }
 
     stop = {
         "training_iteration": args.stop_iters,
