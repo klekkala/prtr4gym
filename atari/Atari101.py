@@ -1,256 +1,172 @@
-import numpy as np
-from typing import Dict, List
+import time
+import sys
+from PIL import Image
+
+
 import gymnasium as gym
+from gymnasium import spaces
+from gymnasium.utils import seeding
 
-from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
-from ray.rllib.models.torch.misc import (
-    normc_initializer,
-    same_padding,
-    SlimConv2d,
-    SlimFC,
-)
-from ray.rllib.models.utils import get_activation_fn, get_filter_config
+
+import numpy as np
+import config as app_config
+import math, cv2, h5py, argparse, csv, copy, time, os, shutil
+from pathlib import Path
+
+import argparse
+import ray
 from ray.rllib.utils.annotations import override
+from ray import air, tune
+from ray.rllib.algorithms import ppo
+from ray.tune.registry import register_env
+from ray.rllib.env.env_context import EnvContext
+from ray.rllib.models import ModelCatalog
+from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
+#from ray.rllib.models.torch.fcnet import FullyConnectedNetwork as TorchFC
+#from Vo import FullyConnectedNetwork as TorchFC
+#from ray.rllib.models.torch.visionnet import VisionNetwork as TorchFC
+from Atari101Model import VaeNetwork as TorchZero
 from ray.rllib.utils.framework import try_import_torch
-from ray.rllib.utils.typing import ModelConfigDict, TensorType
+from ray.rllib.utils.test_utils import check_learning_achieved
+from ray.tune.logger import pretty_print
+from ray.tune.registry import get_trainable_cls
+#from stable_baselines3.common.env_checker import check_env
+#from stable_baselines3.common.vec_env import DummyVecEnv
+#from stable_baselines3.common.env_util import make_vec_env
+#from stable_baselines3.common.evaluation import evaluate_policy
 
-torch, nn = try_import_torch()
+#from stable_baselines3 import PPO, A2C
 
 
-class ZeroNetwork(TorchModelV2, nn.Module):
-    """Generic vision network."""
 
-    def __init__(
-        self,
-        obs_space: gym.spaces.Space,
-        action_space: gym.spaces.Space,
-        num_outputs: int,
-        model_config: ModelConfigDict,
-        name: str,
-    ):
+if __name__ == "__main__":
+    # Load the hdf5 files into a global variable
 
-        if not model_config.get("conv_filters"):
-            model_config["conv_filters"] = get_filter_config(obs_space.shape)
 
-        TorchModelV2.__init__(
-            self, obs_space, action_space, num_outputs, model_config, name
+
+    torch, nn = try_import_torch()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--run", type=str, default="PPO", help="The RLlib-registered algorithm to use."
+    )
+    parser.add_argument(
+        "--framework",
+        choices=["torch"],
+        default="torch",
+    )
+    parser.add_argument(
+        "--as-test",
+        action="store_true",
+        help="Whether this script should be run as a test: --stop-reward must "
+             "be achieved within --stop-timesteps AND --stop-iters.",
+    )
+    parser.add_argument(
+        "--stop-iters", type=int, default=50, help="Number of iterations to train."
+    )
+    parser.add_argument(
+        "--stop-timesteps", type=int, default=100000, help="Number of timesteps to train."
+    )
+    parser.add_argument(
+        "--stop-reward", type=float, default=0.1, help="Reward at which we stop training."
+    )
+    parser.add_argument(
+        "--no-tune",
+        action="store_true",
+        help="Run without Tune using a manual train loop instead. In this case,"
+             "use PPO without grid search and no TensorBoard.",
+    )
+    parser.add_argument(
+        "--local-mode",
+        action="store_true",
+        help="Init Ray in local mode for easier debugging.",
+    )
+
+
+
+    class TorchCustomModel(TorchModelV2, nn.Module):
+        """Example of a PyTorch custom model that just delegates to a fc-net."""
+
+        def __init__(self, obs_space, action_space, num_outputs, model_config, name):
+            TorchModelV2.__init__(
+                self, obs_space, action_space, num_outputs, model_config, name
+            )
+            nn.Module.__init__(self)
+
+            self.torch_sub_model = TorchZero(
+                obs_space, action_space, num_outputs, model_config, name
+            )
+
+        def forward(self, input_dict, state, seq_lens):
+            # input_dict["obs"]["obs"] = input_dict["obs"]["obs"].float()
+            fc_out, _ = self.torch_sub_model(input_dict, state, seq_lens)
+            return fc_out, []
+
+        def value_function(self):
+            return torch.reshape(self.torch_sub_model.value_function(), [-1])
+
+
+    args = parser.parse_args()
+    ray.init(local_mode=args.local_mode)
+    ModelCatalog.register_custom_model(
+        "my_model", TorchCustomModel
+    )
+
+    config = (
+        get_trainable_cls(args.run)
+            .get_default_config()
+            .environment("ALE/Pong-v5")
+            .framework(args.framework)
+            .rollouts(num_rollout_workers=1)
+            .training(
+            model={
+                "custom_model": "my_model",
+                "vf_share_layers": True,
+            }
         )
-        nn.Module.__init__(self)
+            # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
+            .resources(num_gpus=int(os.environ.get("RLLIB_NUM_GPUS", "0")))
+    )
 
-        activation = self.model_config.get("conv_activation")
-        filters = self.model_config["conv_filters"]
-        assert len(filters) > 0, "Must provide at least 1 entry in `conv_filters`!"
+    stop = {
+        "training_iteration": args.stop_iters,
+        "timesteps_total": args.stop_timesteps,
+        "episode_reward_mean": args.stop_reward,
+    }
 
-        # Post FC net config.
-        post_fcnet_hiddens = model_config.get("post_fcnet_hiddens", [])
-        self.pfh=post_fcnet_hiddens
-        post_fcnet_activation = get_activation_fn(
-            model_config.get("post_fcnet_activation"), framework="torch"
+    if args.no_tune:
+        # manual training with train loop using PPO and fixed learning rate
+        if args.run != "PPO":
+            raise ValueError("Only support --run PPO with --no-tune.")
+        print("Running manual train loop without Ray Tune.")
+        # use fixed learning rate instead of grid search (needs tune)
+        config.lr = 1e-3
+        algo = config.build()
+        # run manual training loop and print results after each iteration
+        for _ in range(args.stop_iters):
+            result = algo.train()
+            print(pretty_print(result))
+            # stop training of the target train steps or reward are reached
+            if (
+                    result["timesteps_total"] >= args.stop_timesteps
+                    or result["episode_reward_mean"] >= args.stop_reward
+            ):
+                break
+        algo.stop()
+    else:
+        # automated run with Tune and grid search and TensorBoard
+        print("Training automatically with Ray Tune")
+        tuner = tune.Tuner(
+            args.run,
+            param_space=config.to_dict(),
+            run_config=air.RunConfig(stop=stop),
         )
+        results = tuner.fit()
 
-        vf_share_layers = self.model_config.get("vf_share_layers")
+        if args.as_test:
+            print("Checking if learning goals were achieved")
+            check_learning_achieved(results, args.stop_reward)
 
-        # Whether the last layer is the output of a Flattened (rather than
-        # a n x (1,1) Conv2D).
-        self.last_layer_is_flattened = False
-        self._logits = None
-
-        layers = []
-        #(w, h, in_channels) = obs_space.shape
-        (w, h, in_channels) = (208,416,3)
-
-        in_size = [w, h]
-        for out_channels, kernel, stride in filters[:-1]:
-            padding, out_size = same_padding(in_size, kernel, stride)
-            layers.append(
-                SlimConv2d(
-                    in_channels,
-                    out_channels,
-                    kernel,
-                    stride,
-                    padding,
-                    activation_fn=activation,
-                )
-            )
-            in_channels = out_channels
-            in_size = out_size
-
-        out_channels, kernel, stride = filters[-1]
-
-        layers.append(
-            SlimConv2d(
-                in_channels,
-                out_channels,
-                kernel,
-                stride,
-                None,  # padding=valid
-                activation_fn=activation,
-            )
-        )
-
-
-        if num_outputs and post_fcnet_hiddens:
-            layers.append(nn.Flatten())
-            self._convs = nn.Sequential(*layers)
-            layers=[]
-            in_size = out_channels+5
-            # Add (optional) post-fc-stack after last Conv2D layer.
-            for i, out_size in enumerate(post_fcnet_hiddens + [num_outputs]):
-                layers.append(
-                    SlimFC(
-                        in_size=in_size,
-                        out_size=out_size,
-                        activation_fn=post_fcnet_activation
-                        if i < len(post_fcnet_hiddens) - 1
-                        else None,
-                        initializer=normc_initializer(1.0),
-                    )
-                )
-                in_size = out_size
-            # Last layer is logits layer.
-            self._logits = layers.pop()
-            self._fcnet= nn.Sequential(*layers)
-            # self._logits = nn.Sequential(*layers)
-        else:
-            raise ValueError(
-                "Please set post_fcnet_hiddens"
-            )
-
-
-
-
-        # postFcLayers=[]
-        # postFcLayers.append(
-        #     SlimFC(
-        #         in_size=prev_layer_size,
-        #         out_size=size,
-        #         initializer=normc_initializer(1.0),
-        #         activation_fn=activation,
-        #     )
-        # )
-        # self.postFc = nn.Sequential(*postFcLayers)
-        # post_fcnet_activation
-        # If our num_outputs still unknown, we need to do a test pass to
-        # figure out the output dimensions. This could be the case, if we have
-        # the Flatten layer at the end.
-        if self.num_outputs is None:
-            # Create a B=1 dummy sample and push it through out conv-net.
-            dummy_in = (
-                torch.from_numpy(self.obs_space.sample())
-                .permute(2, 0, 1)
-                .unsqueeze(0)
-                .float()
-            )
-            dummy_out = self._convs(dummy_in)
-            self.num_outputs = dummy_out.shape[1]
-
-        # Build the value layers
-        self._value_branch_separate = self._value_branch = None
-        vf_share_layers=True
-        if vf_share_layers:
-            self._value_branch = SlimFC(
-                post_fcnet_hiddens[-1], 1, initializer=normc_initializer(0.01), activation_fn=None
-            )
-        # else:
-        #     vf_layers = []
-        #     (w, h, in_channels) = obs_space.shape
-        #     in_size = [w, h]
-        #     for out_channels, kernel, stride in filters[:-1]:
-        #         padding, out_size = same_padding(in_size, kernel, stride)
-        #         vf_layers.append(
-        #             SlimConv2d(
-        #                 in_channels,
-        #                 out_channels,
-        #                 kernel,
-        #                 stride,
-        #                 padding,
-        #                 activation_fn=activation,
-        #             )
-        #         )
-        #         in_channels = out_channels
-        #         in_size = out_size
-        #
-        #     out_channels, kernel, stride = filters[-1]
-        #     vf_layers.append(
-        #         SlimConv2d(
-        #             in_channels,
-        #             out_channels,
-        #             kernel,
-        #             stride,
-        #             None,
-        #             activation_fn=activation,
-        #         )
-        #     )
-        #
-        #     vf_layers.append(
-        #         SlimConv2d(
-        #             in_channels=out_channels,
-        #             out_channels=1,
-        #             kernel=1,
-        #             stride=1,
-        #             padding=None,
-        #             activation_fn=None,
-        #         )
-        #     )
-        #     self._value_branch_separate = nn.Sequential(*vf_layers)
-
-        self._features = None
-
-    @override(TorchModelV2)
-    def forward(
-        self,
-        input_dict: Dict[str, TensorType],
-        state: List[TensorType],
-        seq_lens: TensorType,
-    ) -> (TensorType, List[TensorType]):
-        self._features = input_dict["obs"]["obs"].float()
-        # Permuate b/c data comes in as [B, dim, dim, channels]:
-        self._features = self._features.permute(0, 3, 1, 2)
-        conv_out = self._convs(self._features)
-        # Store features to save forward pass when getting value_function out.
-        if not self._value_branch_separate:
-            self._features = conv_out
-        if not self.last_layer_is_flattened:
-            if self._logits:
-                self._aux=input_dict["obs"]["aux"].float()
-                conv_out = torch.cat((conv_out, self._aux), dim=1)
-                conv_out = self._fcnet(conv_out)
-                self._features = conv_out
-                conv_out = self._logits(conv_out)
-            if len(conv_out.shape) == 4:
-                if conv_out.shape[2] != 1 or conv_out.shape[3] != 1:
-                    raise ValueError(
-                        "Given `conv_filters` ({}) do not result in a [B, {} "
-                        "(`num_outputs`), 1, 1] shape (but in {})! Please "
-                        "adjust your Conv2D stack such that the last 2 dims "
-                        "are both 1.".format(
-                            self.model_config["conv_filters"],
-                            self.num_outputs,
-                            list(conv_out.shape),
-                        )
-                    )
-                logits = conv_out.squeeze(3)
-                logits = logits.squeeze(2)
-            else:
-                logits = conv_out
-            return logits, state
-        else:
-            return conv_out, state
-
-    @override(TorchModelV2)
-    def value_function(self) -> TensorType:
-        assert self._features is not None, "must call forward() first"
-        if self._value_branch_separate:
-            value = self._value_branch_separate(self._features)
-            value = value.squeeze(3)
-            value = value.squeeze(2)
-            return value.squeeze(1)
-        else:
-            features = self._features
-            return self._value_branch(features).squeeze(1)
-
-    def _hidden_layers(self, obs: TensorType) -> TensorType:
-        res = self._convs(obs.permute(0, 3, 1, 2))  # switch to channel-major
-        res = res.squeeze(3)
-        res = res.squeeze(2)
-        return res
+    env.close()
+    
+ 
