@@ -1,3 +1,4 @@
+import time
 import sys
 from PIL import Image
 
@@ -8,8 +9,7 @@ from gymnasium.utils import seeding
 
 
 import numpy as np
-import math, argparse, csv, copy, time, os
-from pathlib import Path
+import math, argparse, copy, time, os
 
 import argparse
 import ray
@@ -23,8 +23,7 @@ from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 #from ray.rllib.models.torch.fcnet import FullyConnectedNetwork as TorchFC
 #from Vo import FullyConnectedNetwork as TorchFC
 #from ray.rllib.models.torch.visionnet import VisionNetwork as TorchFC
-from Atari101Vae import VaeNetwork as TorchVae
-from Atari101Res import ResNetwork as TorchRes
+from GymModels import VaeNetwork as TorchZero
 from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.utils.test_utils import check_learning_achieved
 from ray.tune.logger import pretty_print
@@ -55,11 +54,6 @@ if __name__ == "__main__":
         default="torch",
     )
     parser.add_argument(
-        "--model",
-        choices=["vae","res"],
-        default="vae",
-    )
-    parser.add_argument(
         "--as-test",
         action="store_true",
         help="Whether this script should be run as a test: --stop-reward must "
@@ -72,7 +66,7 @@ if __name__ == "__main__":
         "--stop-timesteps", type=int, default=10000000, help="Number of timesteps to train."
     )
     parser.add_argument(
-        "--stop-reward", type=float, default=21, help="Reward at which we stop training."
+        "--stop-reward", type=float, default=25, help="Reward at which we stop training."
     )
     parser.add_argument(
         "--no-tune",
@@ -88,7 +82,8 @@ if __name__ == "__main__":
 
 
 
-    class TorchVaeModel(TorchModelV2, nn.Module):
+    class TorchCustomModel(TorchModelV2, nn.Module):
+        """Example of a PyTorch custom model that just delegates to a fc-net."""
 
         def __init__(self, obs_space, action_space, num_outputs, model_config, name):
             TorchModelV2.__init__(
@@ -96,27 +91,7 @@ if __name__ == "__main__":
             )
             nn.Module.__init__(self)
 
-            self.torch_sub_model = TorchVae(
-                obs_space, action_space, num_outputs, model_config, name
-            )
-
-        def forward(self, input_dict, state, seq_lens):
-            # input_dict["obs"]["obs"] = input_dict["obs"]["obs"].float()
-            fc_out, _ = self.torch_sub_model(input_dict, state, seq_lens)
-            return fc_out, []
-
-        def value_function(self):
-            return torch.reshape(self.torch_sub_model.value_function(), [-1])
-
-    class TorchResModel(TorchModelV2, nn.Module):
-
-        def __init__(self, obs_space, action_space, num_outputs, model_config, name):
-            TorchModelV2.__init__(
-                self, obs_space, action_space, num_outputs, model_config, name
-            )
-            nn.Module.__init__(self)
-
-            self.torch_sub_model = TorchRes(
+            self.torch_sub_model = TorchZero(
                 obs_space, action_space, num_outputs, model_config, name
             )
 
@@ -131,24 +106,19 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     ray.init(local_mode=args.local_mode)
+    ModelCatalog.register_custom_model(
+        "my_model", TorchCustomModel
+    )
 
-    if args.model=='vae':
-        ModelCatalog.register_custom_model(
-            "my_model", TorchVaeModel
-        )
-    elif args.model=='res':
-        ModelCatalog.register_custom_model(
-            "my_model", TorchResModel
-        )
 
     config = (
         get_trainable_cls(args.run)
             .get_default_config()
-            .environment("ALE/SpaceInvaders-v5", clip_rewards = True)
+            .environment("ALE/Pong-v5", clip_rewards = True)
             .framework(args.framework)
-            .rollouts(num_rollout_workers=12,
+            .rollouts(num_rollout_workers=24,
                       rollout_fragment_length= 'auto',
-                      num_envs_per_worker = 10)
+                      num_envs_per_worker = 8)
             .training(
             model={
                 "custom_model": "my_model",
@@ -164,12 +134,9 @@ if __name__ == "__main__":
             num_sgd_iter=10,
 
         )
-            # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
-            #.resources(num_gpus=1,num_gpus_per_worker = .4, num_cpus_per_worker=.5
-            .resources(num_gpus=1, num_gpus_per_worker = .5, num_cpus_per_worker=4
+            .resources(num_gpus=1, num_gpus_per_worker = .2, num_cpus_per_worker=.5
         )
     )
-
 
 
     stop = {
@@ -184,7 +151,8 @@ if __name__ == "__main__":
             raise ValueError("Only support --run PPO with --no-tune.")
         print("Running manual train loop without Ray Tune.")
         # use fixed learning rate instead of grid search (needs tune)
-        config.lr = 1e-3
+        # COMMENTED THIS BY KIRAN
+        #config.lr = 1e-3
         algo = config.build()
         # run manual training loop and print results after each iteration
         for _ in range(args.stop_iters):
@@ -211,4 +179,5 @@ if __name__ == "__main__":
             print("Checking if learning goals were achieved")
             check_learning_achieved(results, args.stop_reward)
 
+    
  
