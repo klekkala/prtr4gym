@@ -23,8 +23,8 @@ from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 #from ray.rllib.models.torch.fcnet import FullyConnectedNetwork as TorchFC
 #from Vo import FullyConnectedNetwork as TorchFC
 #from ray.rllib.models.torch.visionnet import VisionNetwork as TorchFC
-from Atari101Vae import VaeNetwork as TorchVae
-from Atari101Res import ResNetwork as TorchRes
+from AtariModels import VaeNetwork as TorchVae
+from AtariModels import ResNetwork as TorchRes
 from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.utils.test_utils import check_learning_achieved
 from ray.tune.logger import pretty_print
@@ -50,13 +50,8 @@ if __name__ == "__main__":
         "--run", type=str, default="PPO", help="The RLlib-registered algorithm to use."
     )
     parser.add_argument(
-        "--framework",
-        choices=["torch"],
-        default="torch",
-    )
-    parser.add_argument(
         "--model",
-        choices=["vae","res"],
+        choices=["vae", "res", "random", "imagenet", "voltron", "r3m", "value"],
         default="vae",
     )
     parser.add_argument(
@@ -66,20 +61,28 @@ if __name__ == "__main__":
              "be achieved within --stop-timesteps AND --stop-iters.",
     )
     parser.add_argument(
-        "--stop-iters", type=int, default=1000, help="Number of iterations to train."
+        "--env_name", type=str, default="ALE/SpaceInvaders-v5", help="SpaceInvaders-v5"
     )
+
     parser.add_argument(
         "--stop-timesteps", type=int, default=10000000, help="Number of timesteps to train."
     )
+
     parser.add_argument(
-        "--stop-reward", type=float, default=21, help="Reward at which we stop training."
+        "--gpus_worker", type=float, default=1.0, help="Number of GPUs each worker has"
     )
+
+    parser.add_argument(
+        "--cpus_worker", type=float, default=1.0, help="Number of CPUs each worker has"
+    )
+
     parser.add_argument(
         "--no-tune",
         action="store_true",
         help="Run without Tune using a manual train loop instead. In this case,"
              "use PPO without grid search and no TensorBoard.",
     )
+
     parser.add_argument(
         "--local-mode",
         action="store_true",
@@ -144,8 +147,8 @@ if __name__ == "__main__":
     config = (
         get_trainable_cls(args.run)
             .get_default_config()
-            .environment("ALE/SpaceInvaders-v5", clip_rewards = True)
-            .framework(args.framework)
+            .environment(args.env_name, clip_rewards = True)
+            .framework("torch")
             .rollouts(num_rollout_workers=12,
                       rollout_fragment_length= 'auto',
                       num_envs_per_worker = 10)
@@ -165,17 +168,14 @@ if __name__ == "__main__":
 
         )
             # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
-            #.resources(num_gpus=1,num_gpus_per_worker = .4, num_cpus_per_worker=.5
-            .resources(num_gpus=1, num_gpus_per_worker = .5, num_cpus_per_worker=4
+            .resources(num_gpus=1, num_gpus_per_worker = args.gpus_worker, num_cpus_per_worker=args.cpus_worker
         )
     )
 
 
 
-    stop = {
-        "training_iteration": args.stop_iters,
-        "timesteps_total": args.stop_timesteps,
-        "episode_reward_mean": args.stop_reward,
+    stop = {\
+        "timesteps_total": args.stop_timesteps
     }
 
     if args.no_tune:
@@ -193,7 +193,6 @@ if __name__ == "__main__":
             # stop training of the target train steps or reward are reached
             if (
                     result["timesteps_total"] >= args.stop_timesteps
-                    or result["episode_reward_mean"] >= args.stop_reward
             ):
                 break
         algo.stop()
