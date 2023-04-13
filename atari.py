@@ -23,8 +23,8 @@ from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 #from ray.rllib.models.torch.fcnet import FullyConnectedNetwork as TorchFC
 #from Vo import FullyConnectedNetwork as TorchFC
 #from ray.rllib.models.torch.visionnet import VisionNetwork as TorchFC
-from AtariModels import VaeNetwork as TorchVae
-from AtariModels import ResNetwork as TorchRes
+from models.AtariModels import VaeNetwork as TorchVae
+from models.AtariModels import ResNetwork as TorchRes
 from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.utils.test_utils import check_learning_achieved
 from ray.tune.logger import pretty_print
@@ -61,13 +61,21 @@ if __name__ == "__main__":
              "be achieved within --stop-timesteps AND --stop-iters.",
     )
     parser.add_argument(
-        "--env_name", type=str, default="ALE/SpaceInvaders-v5", help="SpaceInvaders-v5"
+        "--env_name", type=str, default="ALE/SpaceInvaders-v5", help="ALE/SpaceInvaders-v5"
     )
 
     parser.add_argument(
         "--stop-timesteps", type=int, default=10000000, help="Number of timesteps to train."
     )
 
+    parser.add_argument(
+        "--num_workers", type=int, default=12, help="Number of GPUs each worker has"
+    )
+    
+    parser.add_argument(
+        "--num_envs", type=int, default=8, help="Number of envs each worker evaluates"
+    )
+    
     parser.add_argument(
         "--gpus_worker", type=float, default=1.0, help="Number of GPUs each worker has"
     )
@@ -149,9 +157,9 @@ if __name__ == "__main__":
             .get_default_config()
             .environment(args.env_name, clip_rewards = True)
             .framework("torch")
-            .rollouts(num_rollout_workers=12,
+            .rollouts(num_rollout_workers=args.num_workers,
                       rollout_fragment_length= 'auto',
-                      num_envs_per_worker = 10)
+                      num_envs_per_worker = args.num_envs)
             .training(
             model={
                 "custom_model": "my_model",

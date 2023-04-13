@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Dict, List
 import gymnasium as gym
-from ResnetX import VAE as VAE
+from models.ResnetX import VAE as VAE
 
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.models.torch.misc import (
