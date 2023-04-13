@@ -23,7 +23,7 @@ from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 #from ray.rllib.models.torch.fcnet import FullyConnectedNetwork as TorchFC
 #from Vo import FullyConnectedNetwork as TorchFC
 #from ray.rllib.models.torch.visionnet import VisionNetwork as TorchFC
-from Atari101Model import VaeNetwork as TorchZero
+from Atari101Model import ResNetwork as TorchZero
 from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.utils.test_utils import check_learning_achieved
 from ray.tune.logger import pretty_print
