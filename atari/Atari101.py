@@ -23,7 +23,8 @@ from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 #from ray.rllib.models.torch.fcnet import FullyConnectedNetwork as TorchFC
 #from Vo import FullyConnectedNetwork as TorchFC
 #from ray.rllib.models.torch.visionnet import VisionNetwork as TorchFC
-from Atari101Model import VaeNetwork as TorchZero
+from Atari101Vae import VaeNetwork as TorchVae
+from Atari101Res import ResNetwork as TorchRes
 from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.utils.test_utils import check_learning_achieved
 from ray.tune.logger import pretty_print
@@ -54,6 +55,11 @@ if __name__ == "__main__":
         default="torch",
     )
     parser.add_argument(
+        "--model",
+        choices=["vae","res"],
+        default="vae",
+    )
+    parser.add_argument(
         "--as-test",
         action="store_true",
         help="Whether this script should be run as a test: --stop-reward must "
@@ -82,8 +88,7 @@ if __name__ == "__main__":
 
 
 
-    class TorchCustomModel(TorchModelV2, nn.Module):
-        """Example of a PyTorch custom model that just delegates to a fc-net."""
+    class TorchVaeModel(TorchModelV2, nn.Module):
 
         def __init__(self, obs_space, action_space, num_outputs, model_config, name):
             TorchModelV2.__init__(
@@ -91,7 +96,27 @@ if __name__ == "__main__":
             )
             nn.Module.__init__(self)
 
-            self.torch_sub_model = TorchZero(
+            self.torch_sub_model = TorchVae(
+                obs_space, action_space, num_outputs, model_config, name
+            )
+
+        def forward(self, input_dict, state, seq_lens):
+            # input_dict["obs"]["obs"] = input_dict["obs"]["obs"].float()
+            fc_out, _ = self.torch_sub_model(input_dict, state, seq_lens)
+            return fc_out, []
+
+        def value_function(self):
+            return torch.reshape(self.torch_sub_model.value_function(), [-1])
+
+    class TorchResModel(TorchModelV2, nn.Module):
+
+        def __init__(self, obs_space, action_space, num_outputs, model_config, name):
+            TorchModelV2.__init__(
+                self, obs_space, action_space, num_outputs, model_config, name
+            )
+            nn.Module.__init__(self)
+
+            self.torch_sub_model = TorchRes(
                 obs_space, action_space, num_outputs, model_config, name
             )
 
@@ -106,9 +131,15 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     ray.init(local_mode=args.local_mode)
-    ModelCatalog.register_custom_model(
-        "my_model", TorchCustomModel
-    )
+
+    if args.model=='vae':
+        ModelCatalog.register_custom_model(
+            "my_model", TorchVaeModel
+        )
+    elif args.model=='res':
+        ModelCatalog.register_custom_model(
+            "my_model", TorchResModel
+        )
 
     config = (
         get_trainable_cls(args.run)
@@ -137,21 +168,8 @@ if __name__ == "__main__":
             .resources(num_gpus=1,num_gpus_per_worker = 2, num_cpus_per_worker=12
         )
     )
-    # config = {
-    #     "framework":torch,
-    #     "num_envs_per_worker": 1,
-    #     "rollout_fragment_length": 1000,
-    #     "train_batch_size": 10000,
-    #     "learning_rate": 0.0001,
-    #     "clip_param": 0.1,
-    #     "clip_rewards": True,
-    #     "num_sgd_iter": 10,
-    #     "num_workers": 8,
-    #     "num_gpus" : 1,
-    #     ""
-    #     "lambda": 0.95,
-    #     "kl_coeff": 0.5,
-    # }
+
+
 
     stop = {
         "training_iteration": args.stop_iters,
