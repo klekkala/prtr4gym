@@ -14,6 +14,7 @@ from ray.rllib.models.utils import get_activation_fn, get_filter_config
 from ray.rllib.utils.annotations import override
 from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.utils.typing import ModelConfigDict, TensorType
+import torchvision.transforms as transforms
 
 torch, nn = try_import_torch()
 
@@ -82,6 +83,8 @@ class VaeNetwork(TorchModelV2, nn.Module):
     ) -> (TensorType, List[TensorType]):
         self._features = input_dict["obs"].float()
         self._features = self._features.permute(0, 3, 1, 2)
+        self._resize_transform = transforms.Resize((84, 84))
+        self._features = self._resize_transform(self._features)
         mod_x = self._vae(self._features / 255.0)[1].detach()
         vae_out = mod_x.view(self._features.shape[0], -1)
         self._features = vae_out

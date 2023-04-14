@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
 
 
-    stop = {\
+    stop = {
         "timesteps_total": args.stop_timesteps
     }
 
