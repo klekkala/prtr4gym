@@ -1,6 +1,6 @@
 import sys
 from PIL import Image
-
+import yaml
 
 import gymnasium as gym
 from gymnasium import spaces
@@ -59,6 +59,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Whether this script should be run as a test: --stop-reward must "
              "be achieved within --stop-timesteps AND --stop-iters.",
+    )
+    
+    parser.add_argument(
+        "--machine", type=str, default="None", help="machine to be training"
+    )
+    parser.add_argument(
+        "--config_file", type=str, default="/lab/kiran/BeoEnv/hostfile.yaml", help="config file for resources"
     )
     parser.add_argument(
         "--env_name", type=str, default="ALE/Pong-v5", help="ALE/Pong-v5"
@@ -146,6 +153,14 @@ if __name__ == "__main__":
 
 
     args = parser.parse_args()
+
+    #extract data from the config file
+    if args.machine is not None:
+        with open(args.config_file, 'r') as cfile:
+            config_data = yaml.safe_load(cfile)
+
+    args.num_workers, args.num_envs, args.num_gpus, args.gpus_worker, args.cpus_worker = config_data[args.machine]
+    
     ray.init(local_mode=args.local_mode)
 
     if args.model=='vae':
