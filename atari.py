@@ -61,7 +61,7 @@ if __name__ == "__main__":
              "be achieved within --stop-timesteps AND --stop-iters.",
     )
     parser.add_argument(
-        "--env_name", type=str, default="ALE/SpaceInvaders-v5", help="ALE/SpaceInvaders-v5"
+        "--env_name", type=str, default="ALE/Pong-v5", help="ALE/Pong-v5"
     )
 
     parser.add_argument(
@@ -69,24 +69,29 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--num_workers", type=int, default=12, help="Number of GPUs each worker has"
+        "--num_workers", type=int, default=20, help="Number of GPUs each worker has"
     )
     
     parser.add_argument(
         "--num_envs", type=int, default=8, help="Number of envs each worker evaluates"
     )
-    
+
     parser.add_argument(
-        "--gpus_worker", type=float, default=1.0, help="Number of GPUs each worker has"
+        "--num_gpus", type=float, default=1, help="Number of GPUs each worker has"
     )
 
     parser.add_argument(
-        "--cpus_worker", type=float, default=1.0, help="Number of CPUs each worker has"
+        "--gpus_worker", type=float, default=.3, help="Number of GPUs each worker has"
+    ) 
+
+    parser.add_argument(
+        "--cpus_worker", type=float, default=.5, help="Number of CPUs each worker has"
     )
 
     parser.add_argument(
         "--no-tune",
         action="store_true",
+        default=True,
         help="Run without Tune using a manual train loop instead. In this case,"
              "use PPO without grid search and no TensorBoard.",
     )
@@ -176,7 +181,7 @@ if __name__ == "__main__":
 
         )
             # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
-            .resources(num_gpus=1, num_gpus_per_worker = args.gpus_worker, num_cpus_per_worker=args.cpus_worker
+            .resources(num_gpus=args.num_gpus, num_gpus_per_worker = args.gpus_worker, num_cpus_per_worker=args.cpus_worker
         )
     )
 
@@ -195,13 +200,11 @@ if __name__ == "__main__":
         config.lr = 1e-3
         algo = config.build()
         # run manual training loop and print results after each iteration
-        for _ in range(args.stop_iters):
+        for _ in range(10000000):
             result = algo.train()
             print(pretty_print(result))
             # stop training of the target train steps or reward are reached
-            if (
-                    result["timesteps_total"] >= args.stop_timesteps
-            ):
+            if result["timesteps_total"] >= args.stop_timesteps:
                 break
         algo.stop()
     else:
