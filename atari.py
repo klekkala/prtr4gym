@@ -178,7 +178,7 @@ if __name__ == "__main__":
             .environment(args.env_name, clip_rewards = True)
             .framework("torch")
             .rollouts(num_rollout_workers=args.num_workers,
-                      rollout_fragment_length= 'auto',
+                      rollout_fragment_length= 200,
                       num_envs_per_worker = args.num_envs)
             .training(
             model={
@@ -212,7 +212,7 @@ if __name__ == "__main__":
             raise ValueError("Only support --run PPO with --no-tune.")
         print("Running manual train loop without Ray Tune.")
         # use fixed learning rate instead of grid search (needs tune)
-        config.lr = 1e-3
+        config.lr = 5e-4
         algo = config.build()
         # run manual training loop and print results after each iteration
         for _ in range(10000000):
