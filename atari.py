@@ -84,6 +84,10 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--roll_frags", type=int, default=100, help="Rollout fragments"
+    )
+    
+    parser.add_argument(
         "--num_gpus", type=float, default=1, help="Number of GPUs each worker has"
     )
 
@@ -159,7 +163,7 @@ if __name__ == "__main__":
         with open(args.config_file, 'r') as cfile:
             config_data = yaml.safe_load(cfile)
 
-    args.num_workers, args.num_envs, args.num_gpus, args.gpus_worker, args.cpus_worker = config_data[args.machine]
+    args.num_workers, args.num_envs, args.num_gpus, args.gpus_worker, args.cpus_worker, args.roll_frags = config_data[args.machine]
     
     ray.init(local_mode=args.local_mode)
 
@@ -178,7 +182,7 @@ if __name__ == "__main__":
             .environment(args.env_name, clip_rewards = True)
             .framework("torch")
             .rollouts(num_rollout_workers=args.num_workers,
-                      rollout_fragment_length= 200,
+                      rollout_fragment_length = arg.roll_frags,
                       num_envs_per_worker = args.num_envs)
             .training(
             model={
