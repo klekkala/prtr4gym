@@ -1,24 +1,17 @@
 import time, psutil
 import sys
 from PIL import Image
-import gc
-from RES_VAE import VAE as VAE
-import GPUtil
 from agent import Agent
 import gymnasium as gym
 from gymnasium import spaces
 from gymnasium.utils import seeding
 from MplCanvas import MplCanvas
 from data_helper import dataHelper, coord_to_sect, coord_to_filename
-
-import tracemalloc
 from memory_profiler import profile
-
 import numpy as np
 import config as app_config
 import math, cv2, h5py, argparse, csv, copy, time, os, shutil
 from pathlib import Path
-
 import argparse
 import ray
 from ray.rllib.utils.annotations import override
@@ -35,12 +28,6 @@ from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.utils.test_utils import check_learning_achieved
 from ray.tune.logger import pretty_print
 from ray.tune.registry import get_trainable_cls
-#from stable_baselines3.common.env_checker import check_env
-#from stable_baselines3.common.vec_env import DummyVecEnv
-#from stable_baselines3.common.env_util import make_vec_env
-#from stable_baselines3.common.evaluation import evaluate_policy
-
-#from stable_baselines3 import PPO, A2C
 
 
 class BeoGym(gym.Env):
