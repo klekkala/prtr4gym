@@ -1,7 +1,7 @@
 import sys
 from PIL import Image
-
-
+import yaml
+import random
 import gymnasium as gym
 from gymnasium import spaces
 from gymnasium.utils import seeding
@@ -15,6 +15,7 @@ import argparse
 import ray
 from ray.rllib.utils.annotations import override
 from ray import air, tune
+from ray.tune.schedulers import PopulationBasedTraining
 from ray.rllib.algorithms import ppo
 from ray.tune.registry import register_env
 from ray.rllib.env.env_context import EnvContext
@@ -60,8 +61,15 @@ if __name__ == "__main__":
         help="Whether this script should be run as a test: --stop-reward must "
              "be achieved within --stop-timesteps AND --stop-iters.",
     )
+    
     parser.add_argument(
-        "--env_name", type=str, default="ALE/SpaceInvaders-v5", help="ALE/SpaceInvaders-v5"
+        "--machine", type=str, default="None", help="machine to be training"
+    )
+    parser.add_argument(
+        "--config_file", type=str, default="/lab/kiran/BeoEnv/hostfile.yaml", help="config file for resources"
+    )
+    parser.add_argument(
+        "--env_name", type=str, default="ALE/Pong-v5", help="ALE/Pong-v5"
     )
 
     parser.add_argument(
@@ -69,26 +77,34 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--num_workers", type=int, default=12, help="Number of GPUs each worker has"
+        "--num_workers", type=int, default=20, help="Number of GPUs each worker has"
     )
     
     parser.add_argument(
         "--num_envs", type=int, default=8, help="Number of envs each worker evaluates"
     )
+
+    parser.add_argument(
+        "--roll_frags", type=int, default=100, help="Rollout fragments"
+    )
     
     parser.add_argument(
-        "--gpus_worker", type=float, default=1.0, help="Number of GPUs each worker has"
+        "--num_gpus", type=float, default=1, help="Number of GPUs each worker has"
     )
 
     parser.add_argument(
-        "--cpus_worker", type=float, default=1.0, help="Number of CPUs each worker has"
+        "--gpus_worker", type=float, default=.3, help="Number of GPUs each worker has"
+    ) 
+
+    parser.add_argument(
+        "--cpus_worker", type=float, default=.5, help="Number of CPUs each worker has"
     )
 
     parser.add_argument(
-        "--no-tune",
+        "--tune",
         action="store_true",
-        help="Run without Tune using a manual train loop instead. In this case,"
-             "use PPO without grid search and no TensorBoard.",
+        default=False,
+        help="Run with/without Tune using a manual train loop instead. If ran without tune, use PPO without grid search and no TensorBoard.",
     )
 
     parser.add_argument(
@@ -97,6 +113,16 @@ if __name__ == "__main__":
         help="Init Ray in local mode for easier debugging.",
     )
 
+
+    # Postprocess the perturbed config to ensure it's still valid
+    def explore(config):
+        # ensure we collect enough timesteps to do sgd
+        if config["train_batch_size"] < config["sgd_minibatch_size"] * 2:
+            config["train_batch_size"] = config["sgd_minibatch_size"] * 2
+        # ensure we run at least one sgd iter
+        if config["num_sgd_iter"] < 1:
+            config["num_sgd_iter"] = 1
+        return config
 
 
     class TorchVaeModel(TorchModelV2, nn.Module):
@@ -141,6 +167,17 @@ if __name__ == "__main__":
 
 
     args = parser.parse_args()
+    
+    if args.tune:
+        args.config_file = '/lab/kiran/BeoEnv/tune.yaml'
+
+    #extract data from the config file
+    if args.machine is not None:
+        with open(args.config_file, 'r') as cfile:
+            config_data = yaml.safe_load(cfile)
+
+    args.num_workers, args.num_envs, args.num_gpus, args.gpus_worker, args.cpus_worker, args.roll_frags = config_data[args.machine]
+    
     ray.init(local_mode=args.local_mode)
 
     if args.model=='vae':
@@ -158,7 +195,7 @@ if __name__ == "__main__":
             .environment(args.env_name, clip_rewards = True)
             .framework("torch")
             .rollouts(num_rollout_workers=args.num_workers,
-                      rollout_fragment_length= 'auto',
+                      rollout_fragment_length = args.roll_frags,
                       num_envs_per_worker = args.num_envs)
             .training(
             model={
@@ -176,7 +213,7 @@ if __name__ == "__main__":
 
         )
             # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
-            .resources(num_gpus=1, num_gpus_per_worker = args.gpus_worker, num_cpus_per_worker=args.cpus_worker
+            .resources(num_gpus=args.num_gpus, num_gpus_per_worker = args.gpus_worker, num_cpus_per_worker=args.cpus_worker
         )
     )
 
@@ -186,29 +223,53 @@ if __name__ == "__main__":
         "timesteps_total": args.stop_timesteps
     }
 
-    if args.no_tune:
+    if args.tune == False:
         # manual training with train loop using PPO and fixed learning rate
         if args.run != "PPO":
-            raise ValueError("Only support --run PPO with --no-tune.")
+            raise ValueError("Only support --run PPO with --tune.")
         print("Running manual train loop without Ray Tune.")
         # use fixed learning rate instead of grid search (needs tune)
-        config.lr = 1e-3
+        #config.lr = 5e-4
         algo = config.build()
         # run manual training loop and print results after each iteration
-        for _ in range(args.stop_iters):
+        for _ in range(10000000):
             result = algo.train()
             print(pretty_print(result))
             # stop training of the target train steps or reward are reached
-            if (
-                    result["timesteps_total"] >= args.stop_timesteps
-            ):
+            if result["timesteps_total"] >= args.stop_timesteps:
                 break
         algo.stop()
     else:
+
+        hyperparam_mutations = {
+            "lambda": lambda: random.uniform(0.9, 1.0),
+            "clip_param": lambda: random.uniform(0.01, 0.5),
+            "lr": [1e-3, 5e-4, 1e-4, 5e-5, 1e-5],
+            "num_sgd_iter": lambda: random.randint(1, 30),
+            "sgd_minibatch_size": lambda: random.randint(128, 16384),
+            "train_batch_size": lambda: random.randint(2000, 160000),
+        }
+
+        pbt = PopulationBasedTraining(
+            time_attr="time_total_s",
+            perturbation_interval=120,
+            resample_probability=0.25,
+            # Specifies the mutations of these hyperparams
+            hyperparam_mutations=hyperparam_mutations,
+            custom_explore_fn=explore,
+        )
+
+
         # automated run with Tune and grid search and TensorBoard
         print("Training automatically with Ray Tune")
         tuner = tune.Tuner(
             args.run,
+            tune_config=tune.TuneConfig(
+                metric="episode_reward_mean",
+                mode="max",
+                scheduler=pbt,
+                num_samples = 2,
+            ),
             param_space=config.to_dict(),
             run_config=air.RunConfig(stop=stop),
         )

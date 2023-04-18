@@ -2,6 +2,8 @@ import numpy as np
 from typing import Dict, List
 import gymnasium as gym
 from models.ResnetX import VAE as VAE
+from torchvision.models import resnet18, ResNet18_Weights
+
 
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.models.torch.misc import (
@@ -122,8 +124,8 @@ class ResNetwork(TorchModelV2, nn.Module):
 
 
         self._logits = None
-        weights = ResNet50_Weights.IMAGENET1K_V2
-        self._resnet = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
+        weights = ResNet18_Weights.IMAGENET1K_V1
+        self._resnet = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
         self._preprocess = weights.transforms()
 
         self._resnet.eval()
