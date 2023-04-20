@@ -102,7 +102,7 @@ class VaeNetwork(TorchModelV2, nn.Module):
 
 
 
-class ResNetwork(TorchModelV2, nn.Module):
+class PreTrainedResNetwork(TorchModelV2, nn.Module):
     """Generic vision network."""
 
     def __init__(
@@ -180,7 +180,7 @@ class ResNetwork(TorchModelV2, nn.Module):
 
 
 
-class FrozenResNetwork(TorchModelV2, nn.Module):
+class ResNetwork(TorchModelV2, nn.Module):
     """Generic vision network."""
 
     def __init__(
