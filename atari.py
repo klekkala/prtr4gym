@@ -26,6 +26,7 @@ from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 #from ray.rllib.models.torch.visionnet import VisionNetwork as TorchFC
 from models.AtariModels import VaeNetwork as TorchVae
 from models.AtariModels import ResNetwork as TorchRes
+from models.AtariModels import FrozenResNetwork as TorchFrozenRes
 from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.utils.test_utils import check_learning_achieved
 from ray.tune.logger import pretty_print
@@ -52,7 +53,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--model",
-        choices=["vae", "res", "random", "imagenet", "voltron", "r3m", "value"],
+        choices=["vae", "res", 'frozenres', "random", "imagenet", "voltron", "r3m", "value"],
         default="vae",
     )
     parser.add_argument(
@@ -165,6 +166,26 @@ if __name__ == "__main__":
         def value_function(self):
             return torch.reshape(self.torch_sub_model.value_function(), [-1])
 
+    class TorchFrozenResModel(TorchModelV2, nn.Module):
+
+        def __init__(self, obs_space, action_space, num_outputs, model_config, name):
+            TorchModelV2.__init__(
+                self, obs_space, action_space, num_outputs, model_config, name
+            )
+            nn.Module.__init__(self)
+
+            self.torch_sub_model = TorchFrozenRes(
+                obs_space, action_space, num_outputs, model_config, name
+            )
+
+        def forward(self, input_dict, state, seq_lens):
+            # input_dict["obs"]["obs"] = input_dict["obs"]["obs"].float()
+            fc_out, _ = self.torch_sub_model(input_dict, state, seq_lens)
+            return fc_out, []
+
+        def value_function(self):
+            return torch.reshape(self.torch_sub_model.value_function(), [-1])
+
 
     args = parser.parse_args()
     
@@ -187,6 +208,10 @@ if __name__ == "__main__":
     elif args.model=='res':
         ModelCatalog.register_custom_model(
             "my_model", TorchResModel
+        )
+    elif args.model=='frozenres':
+        ModelCatalog.register_custom_model(
+            "my_model", TorchFrozenResModel
         )
 
     config = (
