@@ -7,7 +7,6 @@ import time
 # import leveldb
 import plyvel
 import cupy as cp
-from memory_profiler import profile
 from PIL import Image
 
 
@@ -28,11 +27,11 @@ class Equirectangular:
         count = 0
         while self.db == '':
             try:
-                if os.path.exists('data' + str(count) + '/'):
-                    self.db = plyvel.DB('data' + str(count) + '/')
+                if os.path.exists('/lab/kiran/data' + str(count) + '/'):
+                    self.db = plyvel.DB('/lab/kiran/data' + str(count) + '/')
                 else:
-                    shutil.copytree('data/', 'data' + str(count) + '/')
-                    self.db = plyvel.DB('data' + str(count) + '/')
+                    shutil.copytree('/lab/kiran/data/', '/lab/kiran/data' + str(count) + '/')
+                    self.db = plyvel.DB('/lab/kiran/data' + str(count) + '/')
             except IOError:
                 count += 1
         self._img=None

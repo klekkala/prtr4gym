@@ -1,7 +1,5 @@
-import gc
 import pickle
 import time
-from memory_profiler import profile
 
 import plyvel,shutil
 
@@ -65,8 +63,8 @@ class dataHelper():
             self.equ = E2PC.Equirectangular()
 
         # Create canvas for plot rendering:
-        self.canvas = MplCanvas(self, width=8, height=7, dpi=100)
-        self.bev_graph = MplCanvas(self, width=5, height=4, dpi=100)
+        #self.canvas = MplCanvas(self, width=8, height=7, dpi=100)
+        #self.bev_graph = MplCanvas(self, width=5, height=4, dpi=100)
         self.xdata = []
         self.ydata = []
         self.tm = [0]
@@ -187,13 +185,13 @@ class dataHelper():
         print("Building graph. \n")
 
         if os.path.isfile(localMap):
-            self.G = nx.read_gpickle(localMap)
+            self.G = pickle.load(open(localMap,'rb'))
             self.end_points=pickle.load(open(localMap.split('.')[0]+'.pickle','rb'))
             self.image_names = nx.get_node_attributes(self.G, 'image_name')
             # print(self.G)
         if nyc == True and not os.path.isfile(localMap):
-            links = pd.read_csv('data/manhattan_metadata_links.tsv', delimiter='\t')
-            nodes = pd.read_csv('data/manhattan_metadata_nodes.tsv', delimiter='\t')
+            links = pd.read_csv('/lab/kiran/data/manhattan_metadata_links.tsv', delimiter='\t')
+            nodes = pd.read_csv('/lab/kiran/data/manhattan_metadata_nodes.tsv', delimiter='\t')
             nodes = nodes[['pano_id', 'coords.lat', 'coords.lng']]
 
             img2loc = {}

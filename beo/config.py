@@ -9,8 +9,8 @@ import os
 # CAMERA_IMAGES_PATH = "/home/realnav/test_dataset/lb3"
 
 # Locally
-CAMERA_IMAGES_PATH = "data/pano_images"
-GPS_DATA_PATH = "data/pano_gps.csv"
+CAMERA_IMAGES_PATH = "/lab/kiran/data/pano_images"
+GPS_DATA_PATH = "/lab/kiran/data/pano_gps.csv"
 PANO_IMAGE_LIMIT = 0
 PANO_IMAGE_RESOLUTION = (208, 1664,)
 PANO_HOV = 208

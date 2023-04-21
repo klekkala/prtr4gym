@@ -1,5 +1,3 @@
-import gc,copy
-from memory_profiler import profile
 
 import numpy as np
 from typing import Dict, List
@@ -102,7 +100,7 @@ class ZeroNetwork(TorchModelV2, nn.Module):
                     SlimFC(
                         in_size=in_size,
                         out_size=out_size,
-                        activation_fn=post_fcnet_activation
+                        activation_fn="relu"
                         if i < len(post_fcnet_hiddens) - 1
                         else None,
                         initializer=normc_initializer(1.0),

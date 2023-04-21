@@ -7,7 +7,6 @@ import time
 # import leveldb
 import plyvel
 import cupy as cp
-from memory_profiler import profile
 from PIL import Image
 
 
@@ -25,15 +24,13 @@ def byte2str(b):
 class Equirectangular:
     def __init__(self):
         self.db = ''
-        count = 0
+        count = 60
         while self.db == '':
             try:
-                if os.path.exists('data' + str(count) + '/'):
-                    self.db = plyvel.DB('data' + str(count) + '/')
-                else:
-                    shutil.copytree('data/', 'data' + str(count) + '/')
-                    self.db = plyvel.DB('data' + str(count) + '/')
-            except IOError:
+                if count>100:
+                    break
+                self.db = plyvel.DB('/lab/tmpig4b/u/manhattan/data' + str(count) + '/')
+            except :
                 count += 1
         self._img=None
         self._height=0

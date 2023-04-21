@@ -1,4 +1,5 @@
-import time, psutil
+import time,yaml
+import networkx as nx
 import sys
 from PIL import Image
 from agent import Agent
@@ -7,7 +8,6 @@ from gymnasium import spaces
 from gymnasium.utils import seeding
 from MplCanvas import MplCanvas
 from data_helper import dataHelper, coord_to_sect, coord_to_filename
-from memory_profiler import profile
 import numpy as np
 import config as app_config
 import math, cv2, h5py, argparse, csv, copy, time, os, shutil
@@ -40,10 +40,10 @@ class BeoGym(gym.Env):
 
         super(BeoGym, self).__init__()
 
-        self.dh = dataHelper("data/test.csv", app_config.PANO_HOV)
+        self.dh = dataHelper("/lab/kiran/data/test.csv", app_config.PANO_HOV)
         self.agent = Agent(self.dh, turning_range, app_config.PANO_IMAGE_RESOLUTION, app_config.PANO_IMAGE_MODE)
 
-        self.action_space = spaces.Discrete(4)
+        self.action_space = spaces.Discrete(5)
         if self.no_image:
             self.observation_space = spaces.Box(low=-1, high=1, shape=(5,), dtype=np.float32)
         else:
@@ -55,8 +55,8 @@ class BeoGym(gym.Env):
         self.game = 'courier'
         self.max_steps = 2000
         self.curr_step = 0
-        self.min_radius_meters = 5 # The radius around the goal that can be considered the goal itself.
-        self.max_radius_meters = 20 # The outer radius around the goal where the rewards kicks in.
+        self.min_radius_meters = 500 # The radius around the goal that can be considered the goal itself.
+        self.max_radius_meters = 2000 # The outer radius around the goal where the rewards kicks in.
         self.min_distance_reached = 15 # The closest distance the agent has been so far to the goal.
         self.goal_reward = 100
         self.courier_goal = (66.20711657663878, -17.83818898981032)
@@ -83,7 +83,7 @@ class BeoGym(gym.Env):
         self.curr_step=0
         temp = self.agent.reset()
         aux=[2*(self.agent.agent_pos_curr[0] +100)/200 - 1,2*(self.agent.agent_pos_curr[1] +100)/200 - 1, self.agent.curr_angle/360,2*(self.courier_goal[0] +100)/200 - 1,2*(self.courier_goal[1] +100)/200 - 1]
-        self.agent.dis_to_goal = self.dh.distance_to_goal(self.agent.agent_pos_curr, self.courier_goal)
+        self.agent.dis_to_goal = nx.shortest_path_length(self.dh.G, source=self.agent.agent_pos_curr, target=self.courier_goal, weight='weight')
         if self.no_image:
             self.agent.reset()
             return np.array(aux), info
@@ -303,18 +303,13 @@ class BeoGym(gym.Env):
     # Implementation will be similar to this file: https://github.com/deepmind/streetlearn/blob/master/streetlearn/python/environment/courier_game.py
     def courier_reward_fn(self, distance = None):
 
-        reward = 0
+        reward = -4
         found_goal = False
 
-        if self.last_action>1 and self.this_action>1:
-            reward = -0.005
+        if self.this_action>0:
             return reward,found_goal
 
-        distance_to_goal = self.dh.distance_to_goal(self.agent.agent_pos_curr, self.courier_goal)
-
-        if distance_to_goal == self.agent.dis_to_goal and (self.this_action==0 or self.this_action==1):
-            reward = -0.005
-            return reward, found_goal
+        distance_to_goal = nx.shortest_path_length(self.dh.G, source=self.agent.agent_pos_curr, target=self.courier_goal, weight='weight')
         # Does not give reward if the agent visited old locations:
         if self.agent.agent_pos_curr in self.dh.visited_locations:
             self.agent.dis_to_goal = distance_to_goal
@@ -417,7 +412,7 @@ if __name__ == "__main__":
                 coord_to_sect[key] = file_path
 
         gps_map, coord_to_filename_map = get_gps_data()
-    csv_file = "data/test.csv"
+    csv_file = "/lab/kiran/data/test.csv"
 
 
 
@@ -447,7 +442,7 @@ if __name__ == "__main__":
         "--stop-iters", type=int, default=100, help="Number of iterations to train."
     )
     parser.add_argument(
-        "--stop-timesteps", type=int, default=50000, help="Number of timesteps to train."
+        "--stop-timesteps", type=int, default=1000000, help="Number of timesteps to train."
     )
     parser.add_argument(
         "--machine", type=str, default="None", help="machine to be training"
@@ -589,7 +584,7 @@ if __name__ == "__main__":
                     "custom_model": "my_model",
                     "vf_share_layers": True,
                     "conv_filters": [[16, [7, 13], 6], [32, [5, 13], 4], [256, [5, 14], 5]],
-                    "post_fcnet_hiddens": [64, 32],
+                    "post_fcnet_hiddens": [128, 64, 64, 32, 32],
                 },
                 lambda_=0.95,
                 kl_coeff=0.5,

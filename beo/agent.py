@@ -1,4 +1,4 @@
-from memory_profiler import profile
+
 
 class Agent():
 
@@ -131,8 +131,18 @@ class Agent():
         if action == 0:
             self.go_straight()
         elif action == 1:
-            self.go_back()
-        else:
-            angle = self.action_angle_map[action]
-            self.pano_fixed_angle_turn(angle)
-
+            new_angle = self.dh.fix_angle(self.curr_angle + 30)
+            self.curr_angle = new_angle
+            self.curr_view = self.dh.panorama_split(new_angle,  self.agent_pos_curr, self.view_res)
+        elif action == 2:
+            new_angle = self.dh.fix_angle(self.curr_angle + 90)
+            self.curr_angle = new_angle
+            self.curr_view = self.dh.panorama_split(new_angle,  self.agent_pos_curr, self.view_res)
+        elif action == 3:
+            new_angle = self.dh.fix_angle(self.curr_angle - 30)
+            self.curr_angle = new_angle
+            self.curr_view = self.dh.panorama_split(new_angle,  self.agent_pos_curr, self.view_res)
+        elif action == 4:
+            new_angle = self.dh.fix_angle(self.curr_angle - 90)
+            self.curr_angle = new_angle
+            self.curr_view = self.dh.panorama_split(new_angle,  self.agent_pos_curr, self.view_res)
