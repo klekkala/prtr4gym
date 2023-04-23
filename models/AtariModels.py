@@ -1,9 +1,10 @@
 import numpy as np
 from typing import Dict, List
-import gymnasium as gym
+#import gymnasium as gym
+import gym
 from models.ResnetX import VAE as VAE
 from torchvision.models import resnet18, ResNet18_Weights
-
+import torch.nn.functional as F
 
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.models.torch.misc import (
@@ -47,7 +48,7 @@ class VaeNetwork(TorchModelV2, nn.Module):
 
         self._logits = None
 
-        self._vae=VAE(channel_in=3, ch=64)
+        self._vae=VAE(channel_in=4, ch=64)
         checkpoint = torch.load("/lab/kiran/models/pretrained/atari/" + "STL10_ATTARI_64.pt", map_location="cpu")
         print("Checkpoint loaded")
         self._vae.load_state_dict(checkpoint['model_state_dict'])
@@ -185,13 +186,12 @@ class ResDown(nn.Module):
     """
     Residual down sampling block for the encoder
     """
-
     def __init__(self, channel_in, channel_out, scale=2):
         super(ResDown, self).__init__()
 
-        self.conv1 = nn.Conv2d(channel_in, channel_out // 2, 3, 1, 1)
-        self.BN1 = nn.BatchNorm2d(channel_out // 2)
-        self.conv2 = nn.Conv2d(channel_out // 2, channel_out, 3, 1, 1)
+        self.conv1 = nn.Conv2d(channel_in, channel_out//2, 3, 1, 1)
+        self.BN1 = nn.BatchNorm2d(channel_out//2)
+        self.conv2 = nn.Conv2d(channel_out//2, channel_out, 3, 1, 1)
         self.BN2 = nn.BatchNorm2d(channel_out)
 
         self.conv3 = nn.Conv2d(channel_in, channel_out, 3, 1, 1)
@@ -201,14 +201,15 @@ class ResDown(nn.Module):
     def forward(self, x):
         skip = self.conv3(self.AvePool(x))
 
-        x = nn.functional.rrelu(self.BN1(self.conv1(x)))
+        x = F.rrelu(self.BN1(self.conv1(x)))
         x = self.AvePool(x)
         x = self.BN2(self.conv2(x))
 
-        x = nn.functional.rrelu(x + skip)
+        x = F.rrelu(x + skip)
         return x
 
-class Encoder(nn.Module):
+
+class ResX(nn.Module):
     """
     Encoder block
     Built for a 3x64x64 image and will result in a latent vector of size z x 1 x 1
@@ -220,7 +221,7 @@ class Encoder(nn.Module):
     """
 
     def __init__(self, channels, ch=64, z=512):
-        super(Encoder, self).__init__()
+        super(ResX, self).__init__()
         self.conv1 = ResDown(channels, ch)  # 64
         self.conv2 = ResDown(ch, 2 * ch)  # 32
         self.conv3 = ResDown(2 * ch, 4 * ch)  # 16
@@ -275,7 +276,7 @@ class ResNetwork(TorchModelV2, nn.Module):
 
 
         self._logits = None
-        self._encoder=Encoder(3, 64, 512)
+        self._encoder=ResX(4, 64, 512)
         self._encoder.train()
 
 

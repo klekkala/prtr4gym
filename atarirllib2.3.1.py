@@ -4,10 +4,9 @@ from datetime import datetime
 import tempfile
 import yaml
 import random
-
-#import gymnasium as gym
-#from gymnasium import spaces
-#from gymnasium.utils import seeding
+import gymnasium as gym
+from gymnasium import spaces
+from gymnasium.utils import seeding
 
 
 import numpy as np
@@ -19,7 +18,7 @@ import ray
 from ray.rllib.utils.annotations import override
 from ray import air, tune
 from ray.tune.schedulers import PopulationBasedTraining
-from ray.rllib.algorithms.ppo import PPO
+from ray.rllib.algorithms import ppo
 from ray.tune.registry import register_env
 from ray.rllib.env.env_context import EnvContext
 from ray.rllib.models import ModelCatalog
@@ -52,6 +51,9 @@ if __name__ == "__main__":
     torch, nn = try_import_torch()
 
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--run", type=str, default="PPO", help="The RLlib-registered algorithm to use."
+    )
     parser.add_argument(
         "--model",
         choices=["vae", "res", "random", "imagenet", "voltron", "r3m", "value"],
@@ -261,33 +263,37 @@ if __name__ == "__main__":
 
 
     str_logger = args.env_name + "_" + args.model + "_" + str(args.stop_timesteps) + "_lr" + str(args.lr) + "_lam" + str(args.lambda_) + "_kl" + str(args.kl_coeff) + "_cli" + str(args.clip_param) + "_ent" + str(args.entropy_coeff) + "_gam" + str(args.gamma) + "_buf" + str(args.buffer_size) + "_bat" + str(args.batch_size) + "_num" + str(args.num_epoch)
-    config = {
-            "env" : args.env_name,
-            "clip_rewards" : True,
-            "framework" : "torch",
-            "logger_creator":custom_log_creator(os.path.expanduser(args.log), str_logger),
-    "observation_filter":"NoFilter",
-            "num_workers":args.num_workers,
-            "rollout_fragment_length" : args.roll_frags,
-            "num_envs_per_worker" : args.num_envs,
-            "model":{
-                    "custom_model" : "my_model",
-                    "vf_share_layers" : True,
+    config = (
+        get_trainable_cls(args.run)
+            .get_default_config()
+            .environment(args.env_name, clip_rewards = True)
+            .framework("torch")
+            .debugging(logger_creator=custom_log_creator(os.path.expanduser(args.log), str_logger))
+            .rollouts(observation_filter="NoFilter",
+                      num_rollout_workers=args.num_workers,
+                      rollout_fragment_length = args.roll_frags,
+                      num_envs_per_worker = args.num_envs)
+            .training(
+            model={
+                "custom_model": "my_model",
+                "vf_share_layers": True,
             },
-            #"lambda_" : args.lambda_,
-            "kl_coeff" : args.kl_coeff,
-            "clip_param" : args.clip_param,
-            "entropy_coeff" : args.entropy_coeff,
-            "gamma" : args.gamma,
-            "vf_clip_param" : args.vf_clip,
-            "train_batch_size":args.buffer_size,
-            "sgd_minibatch_size":args.batch_size,
-            "num_sgd_iter":args.num_epoch,
+            lambda_ = args.lambda_,
+            kl_coeff = args.kl_coeff,
+            clip_param = args.clip_param,
+            entropy_coeff = args.entropy_coeff,
+            gamma = args.gamma,
+            vf_clip_param = args.vf_clip,
+            train_batch_size=args.buffer_size,
+            sgd_minibatch_size=args.batch_size,
+            num_sgd_iter=args.num_epoch,
+
+        )
             # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
-            "num_gpus":args.num_gpus,
-            "num_gpus_per_worker" : args.gpus_worker,
-            "num_cpus_per_worker":args.cpus_worker
-            }
+            .resources(num_gpus=args.num_gpus, num_gpus_per_worker = args.gpus_worker, num_cpus_per_worker=args.cpus_worker
+        )
+    )
+
 
 
     stop = {
@@ -296,12 +302,12 @@ if __name__ == "__main__":
 
     if args.tune == False:
         # manual training with train loop using PPO and fixed learning rate
-        #if args.run != "PPO":
-        #    raise ValueError("Only support --run PPO with --tune.")
-        #print("Running manual train loop without Ray Tune.")
+        if args.run != "PPO":
+            raise ValueError("Only support --run PPO with --tune.")
+        print("Running manual train loop without Ray Tune.")
         # use fixed learning rate instead of grid search (needs tune)
         #config.lr = 5e-4
-        algo = PPO(config=config)
+        algo = config.build()
         # run manual training loop and print results after each iteration
         for _ in range(args.stop_timesteps):
             result = algo.train()

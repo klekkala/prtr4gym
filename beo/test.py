@@ -1,6 +1,6 @@
 import plyvel, pickle
 import networkx as nx
-db = plyvel.DB('/lab/tmpig4b/u/manhattan/data' + str(30) + '/')
+db = plyvel.DB('/lab/tmpig4b/u/manhattan/data' + str(40) + '/')
 
 with open('test.gpickle','rb') as f:
     G = pickle.load(f)
@@ -21,10 +21,10 @@ for i in err:
     temp = db.get(str2byte(i))
     print(len(temp))
 
-#for pos in G.nodes():
-    #pos = str(pos[0]) + ',' + str(pos[1])
+for pos in G.nodes():
+    pos = str(pos[0]) + ',' + str(pos[1])
     #if pos in err:
         #print('we get error')
-    #temp = db.get(str2byte(pos))
+    temp = db.get(str2byte(pos))
     
 print('ok')

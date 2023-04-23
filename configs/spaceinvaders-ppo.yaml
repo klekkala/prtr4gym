@@ -2,8 +2,8 @@
 #
 # $ python train.py -f tuned_configs/pong-ppo.yaml
 #
-pong-ppo:
-    env: ALE/Pong-v5
+spaceinvaders-ppo:
+    env: SpaceInvadersNoFrameskip-v4
     run: PPO
     config:
         # Works for both torch and tf.
@@ -15,14 +15,13 @@ pong-ppo:
         vf_clip_param: 10.0
         entropy_coeff: 0.01
         train_batch_size: 5000
-        rollout_fragment_length: 'auto'
+        rollout_fragment_length: 100
         sgd_minibatch_size: 500
         num_sgd_iter: 10
-        num_workers: 8
+        num_workers: 10
         num_gpus: 1
-        num_envs_per_worker: 6
-        num_cpus_per_worker: 12
-        num_gpus_per_worker: 2
+        num_envs_per_worker: 5
+        batch_mode: truncate_episodes
+        observation_filter: NoFilter
         model:
-            dim: 42
             vf_share_layers: true

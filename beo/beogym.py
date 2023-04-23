@@ -1,4 +1,5 @@
 import time,yaml
+from ray.tune.schedulers import PopulationBasedTraining
 import networkx as nx
 import sys
 from PIL import Image
@@ -40,7 +41,7 @@ class BeoGym(gym.Env):
 
         super(BeoGym, self).__init__()
 
-        self.dh = dataHelper("/lab/kiran/data/test.csv", app_config.PANO_HOV)
+        self.dh = dataHelper("data/test.csv", app_config.PANO_HOV)
         self.agent = Agent(self.dh, turning_range, app_config.PANO_IMAGE_RESOLUTION, app_config.PANO_IMAGE_MODE)
 
         self.action_space = spaces.Discrete(5)
@@ -53,7 +54,7 @@ class BeoGym(gym.Env):
 
         # Settings:
         self.game = 'courier'
-        self.max_steps = 2000
+        self.max_steps = 1000
         self.curr_step = 0
         self.min_radius_meters = 500 # The radius around the goal that can be considered the goal itself.
         self.max_radius_meters = 2000 # The outer radius around the goal where the rewards kicks in.
@@ -412,7 +413,7 @@ if __name__ == "__main__":
                 coord_to_sect[key] = file_path
 
         gps_map, coord_to_filename_map = get_gps_data()
-    csv_file = "/lab/kiran/data/test.csv"
+    csv_file = "data/test.csv"
 
 
 
@@ -576,8 +577,8 @@ if __name__ == "__main__":
                 .get_default_config()
                 .environment(BeoGym, env_config = {"no_image":args.no_image}, clip_rewards=True)
                 .framework("torch")
-                .rollouts(num_rollout_workers=args.num_workers,
-                          rollout_fragment_length=args.roll_frags,
+                .rollouts(num_rollout_workers=10,
+                          rollout_fragment_length='auto',
                           num_envs_per_worker=args.num_envs)
                 .training(
                 model={

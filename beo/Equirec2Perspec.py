@@ -24,7 +24,7 @@ def byte2str(b):
 class Equirectangular:
     def __init__(self):
         self.db = ''
-        count = 60
+        count = 40
         while self.db == '':
             try:
                 if count>100:
