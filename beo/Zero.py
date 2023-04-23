@@ -57,7 +57,7 @@ class ZeroNetwork(TorchModelV2, nn.Module):
         self._debug=0
         layers = []
         # (w, h, in_channels) = obs_space.shape
-        (w, h, in_channels) = (208,416,3)
+        (w, h, in_channels) = (208,416,5)
 
         in_size = [w, h]
         for out_channels, kernel, stride in filters[:-1]:
