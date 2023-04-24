@@ -15,7 +15,7 @@ from ray.rllib.policy.policy import Policy
 import cv2
 torch, nn = try_import_torch()
 
-
+parser = argparse.ArgumentParser()
 parser.add_argument(
     '--env-name',
     default='beogym-v0',
