@@ -48,7 +48,7 @@ class VaeNetwork(TorchModelV2, nn.Module):
 
         self._logits = None
 
-        self._vae=VAE(channel_in=4, ch=64)
+        self._vae=VAE(channel_in=3, ch=64)
         checkpoint = torch.load("/lab/kiran/models/pretrained/atari/" + "STL10_ATTARI_64.pt", map_location="cpu")
         print("Checkpoint loaded")
         self._vae.load_state_dict(checkpoint['model_state_dict'])

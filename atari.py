@@ -32,8 +32,7 @@ from models.AtariModels import PreTrainedResNetwork as TorchPreTrainedRes
 from models.AtariModels import ResNetwork as TorchRes
 from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.utils.test_utils import check_learning_achieved
-from ray.tune.logger import pretty_print
-from ray.tune.logger import UnifiedLogger
+from ray.tune.logger import pretty_print, UnifiedLogger, Logger, LegacyLoggerCallback
 from ray.tune.registry import get_trainable_cls
 #from stable_baselines3.common.env_checker import check_env
 #from stable_baselines3.common.vec_env import DummyVecEnv
@@ -147,28 +146,22 @@ if __name__ == "__main__":
     )
 
 
-    def custom_log_creator(custom_path, custom_str):
-        timestr = datetime.today().strftime("%Y-%m-%d_%H-%M-%S")
-        logdir_prefix = "{}_{}".format(custom_str, timestr)
-
-        def logger_creator(config):
-
-            if not os.path.exists(custom_path):
-                os.makedirs(custom_path)
-            logdir = tempfile.mkdtemp(prefix=logdir_prefix, dir=custom_path)
-            return UnifiedLogger(config, logdir, loggers=None)
-
-        return logger_creator
-
-    # Postprocess the perturbed config to ensure it's still valid
-    def explore(config):
-        # ensure we collect enough timesteps to do sgd
-        if config["train_batch_size"] < config["sgd_minibatch_size"] * 2:
-            config["train_batch_size"] = config["sgd_minibatch_size"] * 2
-        # ensure we run at least one sgd iter
-        if config["num_sgd_iter"] < 1:
-            config["num_sgd_iter"] = 1
-        return config
+    class MyPrintLogger(Logger):
+        """Logs results by simply printing out everything."""
+        def _init(self):
+            # Custom init function.
+            print("Initializing ...")
+            # Setting up our log-line prefix.
+            self.prefix = self.config.get("logger_config").get("prefix")
+        def on_result(self, result: dict):
+            # Define, what should happen on receiving a `result` (dict).
+            print(f"{self.prefix}: {result}")
+        def close(self):
+            # Releases all resources used by this logger.
+            print("Closing")
+        def flush(self):
+            # Flushing all possible disk writes to permanent storage.
+            print("Flushing ;)", flush=True)
 
 
     class TorchVaeModel(TorchModelV2, nn.Module):
@@ -265,8 +258,11 @@ if __name__ == "__main__":
             "env" : args.env_name,
             "clip_rewards" : True,
             "framework" : "torch",
-            "logger_creator":custom_log_creator(os.path.expanduser(args.log), str_logger),
-    "observation_filter":"NoFilter",
+            "logger_config": {
+                "type": UnifiedLogger,
+                "logdir": os.path.expanduser(args.log) + '/' + str_logger
+                },
+            "observation_filter":"NoFilter",
             "num_workers":args.num_workers,
             "rollout_fragment_length" : args.roll_frags,
             "num_envs_per_worker" : args.num_envs,
