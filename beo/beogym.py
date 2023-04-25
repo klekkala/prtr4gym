@@ -48,7 +48,7 @@ class BeoGym(gym.Env):
         if self.no_image:
             self.observation_space = spaces.Box(low=-1, high=1, shape=(5,), dtype=np.float32)
         else:
-            self.observation_space = gym.spaces.Dict({"obs": spaces.Box(low = 0, high = 255, shape = (208, 416, 3), dtype= np.uint8), "aux": spaces.Box(low = -1.0, high = 1.0,shape = (5,), dtype= np.float32)})
+            self.observation_space = gym.spaces.Dict({"obs": spaces.Box(low = 0, high = 255, shape = (208, 416, 5), dtype= np.uint8), "aux": spaces.Box(low = -1.0, high = 1.0,shape = (5,), dtype= np.float32)})
 
         self.seed(1)
 
@@ -89,7 +89,12 @@ class BeoGym(gym.Env):
             self.agent.reset()
             return np.array(aux), info
         else:
-            return {'obs': temp, 'aux': np.array(aux)}, info
+            gray_image = cv2.cvtColor(temp, cv2.COLOR_RGB2GRAY)
+            self.agent.past_view = []
+            for i in range(4):
+                self.agent.past_view.append(np.zeros(gray_image.shape, dtype=np.uint8))
+            self.agent.past_view.append(gray_image)
+            return {'obs': np.dstack(self.agent.past_view), 'aux': np.array(aux)}, info
 
     def step(self, action):
         done = False
@@ -133,7 +138,10 @@ class BeoGym(gym.Env):
         if self.no_image:
             return np.array(aux), reward, terminated, done, info
         else:
-            return {'obs': self.agent.curr_view, 'aux': np.array(aux)}, reward, terminated, done, info
+            gray_image = cv2.cvtColor(self.agent.curr_view, cv2.COLOR_RGB2GRAY)
+            self.agent.past_view = self.agent.past_view[1:]
+            self.agent.past_view.append(gray_image)
+            return {'obs': np.dstack(self.agent.past_view), 'aux': np.array(aux)}, reward, terminated, done, info
 
 
     def render(self, mode='human', steps=100):

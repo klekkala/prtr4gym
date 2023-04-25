@@ -19,6 +19,7 @@ class Agent():
             5: 288,
             6: 360,
         }
+        self.past_view = []
         self.reset()
 
     
