@@ -24,7 +24,8 @@ def byte2str(b):
 class Equirectangular:
     def __init__(self):
         self.db = ''
-        count = 40
+        count = 80
+        self.wrong=0
         while self.db == '':
             try:
                 if count>100:
@@ -38,7 +39,20 @@ class Equirectangular:
 
     def get_image(self, pos):
         pos = str(pos[0]) + ',' + str(pos[1])
-        self._img = cv2.imdecode(np.frombuffer(self.db.get(str2byte(pos)), np.uint8), -1)
+        try:
+            self._img = cv2.imdecode(np.frombuffer(self.db.get(str2byte(pos)), np.uint8), -1)
+        except:
+            count=25
+            self.db = ''
+            while self.db == '' and self._img is None:
+                try:
+                    if count>100:
+                        continue
+                    self.db = plyvel.DB('/lab/tmpig4b/u/manhattan/data' + str(count) + '/')
+                    self._img = cv2.imdecode(np.frombuffer(self.db.get(str2byte(pos)), np.uint8), -1)
+                except :
+                    count += 1
+            #self._img = cv2.imdecode(np.frombuffer(self.db.get(str2byte(pos)), np.uint8), -1)
         [self._height, self._width, _] = self._img.shape
 
 

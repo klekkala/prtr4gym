@@ -4,9 +4,9 @@ import networkx as nx
 import sys
 from PIL import Image
 from agent import Agent
-import gymnasium as gym
-from gymnasium import spaces
-from gymnasium.utils import seeding
+import gym
+from gym import spaces
+from gym.utils import seeding
 from MplCanvas import MplCanvas
 from data_helper import dataHelper, coord_to_sect, coord_to_filename
 import numpy as np
@@ -15,9 +15,10 @@ import math, cv2, h5py, argparse, csv, copy, time, os, shutil
 from pathlib import Path
 import argparse
 import ray
+from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.utils.annotations import override
 from ray import air, tune
-from ray.rllib.algorithms import ppo
+from ray.rllib.algorithms.ppo import PPO
 from ray.tune.registry import register_env
 from ray.rllib.env.env_context import EnvContext
 from ray.rllib.examples.env.random_env import RandomEnv
@@ -46,6 +47,7 @@ class BeoGym(gym.Env):
 
         self.action_space = spaces.Discrete(5)
         if self.no_image:
+            print("No image mode")
             self.observation_space = spaces.Box(low=-1, high=1, shape=(5,), dtype=np.float32)
         else:
             self.observation_space = gym.spaces.Dict({"obs": spaces.Box(low = 0, high = 255, shape = (208, 416, 5), dtype= np.uint8), "aux": spaces.Box(low = -1.0, high = 1.0,shape = (5,), dtype= np.float32)})
@@ -59,7 +61,7 @@ class BeoGym(gym.Env):
         self.min_radius_meters = 500 # The radius around the goal that can be considered the goal itself.
         self.max_radius_meters = 2000 # The outer radius around the goal where the rewards kicks in.
         self.min_distance_reached = 15 # The closest distance the agent has been so far to the goal.
-        self.goal_reward = 100
+        self.goal_reward = 5000
         self.courier_goal = (66.20711657663878, -17.83818898981032)
         self.last_action = -1
         self.this_action = -1
@@ -87,14 +89,12 @@ class BeoGym(gym.Env):
         self.agent.dis_to_goal = nx.shortest_path_length(self.dh.G, source=self.agent.agent_pos_curr, target=self.courier_goal, weight='weight')
         if self.no_image:
             self.agent.reset()
-            return np.array(aux), info
+            return np.array(aux)
         else:
             gray_image = cv2.cvtColor(temp, cv2.COLOR_RGB2GRAY)
-            self.agent.past_view = []
-            for i in range(4):
-                self.agent.past_view.append(np.zeros(gray_image.shape, dtype=np.uint8))
-            self.agent.past_view.append(gray_image)
-            return {'obs': np.dstack(self.agent.past_view), 'aux': np.array(aux)}, info
+            self.agent.past_view=np.zeros((gray_image.shape[0],gray_image.shape[1],4), dtype=np.float32)
+            self.agent.past_view = np.concatenate((self.agent.past_view, np.expand_dims(gray_image, axis=-1)), axis=-1)
+            return {'obs': self.agent.past_view, 'aux': np.array(aux)}
 
     def step(self, action):
         done = False
@@ -120,28 +120,26 @@ class BeoGym(gym.Env):
             filename = f"step_{self.curr_step}_action_{action_name}.{app_config.IMAGE_SOURCE_EXTENSION}"
             cv2.imwrite(f"{app_config.IMAGE_PATH_DIR}/{filename}", self.agent.curr_view)
 
-        if (self.curr_step >= self. max_steps):
-            
-            done = True
-            info['time_limit_reached'] = True
-
         # print("comparison: ", self.game == 'courier')
 
         # Three different type of games: https://arxiv.org/pdf/1903.01292.pdf
         if self.game == 'courier':
-            reward, terminated = self.courier_reward_fn()
+            reward, done = self.courier_reward_fn()
         elif self.game == 'coin':
-            reward, terminated = self.coin_reward_fn()
+            reward, done = self.coin_reward_fn()
         elif self.game == 'instruction':
-            reward, terminated = self.instruction_reward_fn()
+            reward, done = self.instruction_reward_fn()
         aux = [2*(self.agent.agent_pos_curr[0] +100)/200 - 1,2*(self.agent.agent_pos_curr[1] +100)/200 - 1, self.agent.curr_angle/360,2*(self.courier_goal[0] +100)/200 - 1,2*(self.courier_goal[1] +100)/200 - 1]
+        if (self.curr_step >= self.max_steps):
+            done = True
+            info['time_limit_reached'] = True
         if self.no_image:
-            return np.array(aux), reward, terminated, done, info
+            return np.array(aux), reward, done, info
         else:
             gray_image = cv2.cvtColor(self.agent.curr_view, cv2.COLOR_RGB2GRAY)
-            self.agent.past_view = self.agent.past_view[1:]
-            self.agent.past_view.append(gray_image)
-            return {'obs': np.dstack(self.agent.past_view), 'aux': np.array(aux)}, reward, terminated, done, info
+            self.agent.past_view[:-1] = self.agent.past_view[1:]
+            self.agent.past_view[..., -1] = gray_image
+            return {'obs': np.dstack(self.agent.past_view), 'aux': np.array(aux)}, reward, done, info
 
 
     def render(self, mode='human', steps=100):
@@ -312,7 +310,7 @@ class BeoGym(gym.Env):
     # Implementation will be similar to this file: https://github.com/deepmind/streetlearn/blob/master/streetlearn/python/environment/courier_game.py
     def courier_reward_fn(self, distance = None):
 
-        reward = -4
+        reward = -8
         found_goal = False
 
         if self.this_action>0:
@@ -465,7 +463,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--num_envs", type=int, default=8, help="Number of envs each worker evaluates"
+        "--num_envs", type=int, default=2, help="Number of envs each worker evaluates"
     )
 
     parser.add_argument(
@@ -498,7 +496,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--no_image",
         choices=[False,True],
-        default=False,
+        default=True,
     )
 
 
@@ -581,19 +579,19 @@ if __name__ == "__main__":
             )
 
         config = (
-            get_trainable_cls(args.run)
-                .get_default_config()
+            PPOConfig()
                 .environment(BeoGym, env_config = {"no_image":args.no_image}, clip_rewards=True)
                 .framework("torch")
                 .rollouts(num_rollout_workers=10,
-                          rollout_fragment_length='auto',
-                          num_envs_per_worker=args.num_envs)
+                          rollout_fragment_length=10,
+                          num_envs_per_worker=args.num_envs,
+                          ignore_worker_failures=True)
                 .training(
                 model={
                     "custom_model": "my_model",
                     "vf_share_layers": True,
                     "conv_filters": [[16, [7, 13], 6], [32, [5, 13], 4], [256, [5, 14], 5]],
-                    "post_fcnet_hiddens": [128, 64, 64, 32, 32],
+                    "post_fcnet_hiddens": [64, 32],
                 },
                 lambda_=0.95,
                 kl_coeff=0.5,
@@ -610,6 +608,7 @@ if __name__ == "__main__":
                            num_cpus_per_worker=args.cpus_worker
                            )
         )
+
 
 
 
