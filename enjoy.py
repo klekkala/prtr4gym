@@ -65,5 +65,6 @@ while True:
     env.dh.update_plot(env.agent.agent_pos_curr, env.courier_goal)
     cv2.imshow('window', obs['obs'])
     key = cv2.waitKey(100)
+    print("reward is:"+str(reward))
     if count==100:
         break
