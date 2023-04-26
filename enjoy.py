@@ -62,7 +62,8 @@ while True:
     action = my_restored_policy.compute_single_action(obs)[0]
     # Obser reward and next obs
     obs, reward, terminated, done, _ = env.step(action)
+    env.dh.update_plot(env.agent.agent_pos_curr, env.courier_goal)
     cv2.imshow('window', obs['obs'])
-    key = cv2.waitKey(1000)
+    key = cv2.waitKey(100)
     if count==100:
         break

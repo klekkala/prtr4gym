@@ -165,7 +165,7 @@ class dataHelper():
         # phi is y-axis angle(up direction positive, down direction negative)
         # height and width is output image dimension
         #
-        img = self.equ.GetPerspective(450, theta - self.headOff[curr_pos], 0, *resolution)  # Specify parameters(FOV, theta, phi, height, width)
+        img = self.equ.GetPerspective(90, theta - self.headOff[curr_pos])
 
         midpoint = (int) (img.shape[1] / 2)
         img = img[:, (midpoint - self.hov):(midpoint + self.hov)]

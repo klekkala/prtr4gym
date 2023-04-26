@@ -496,7 +496,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--no_image",
         choices=[False,True],
-        default=True,
+        default=False,
     )
 
 
@@ -631,6 +631,8 @@ if __name__ == "__main__":
                 print(pretty_print(result))
                 # stop training of the target train steps or reward are reached
                 if result["timesteps_total"] >= args.stop_timesteps:
+                    path_to_checkpoint = algo.save()
+                    print(path_to_checkpoint)
                     break
             algo.stop()
         else:

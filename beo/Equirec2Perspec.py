@@ -7,7 +7,6 @@ import time
 # import leveldb
 import plyvel
 import cupy as cp
-from PIL import Image
 
 
 
@@ -58,71 +57,47 @@ class Equirectangular:
 
 
     # @profile(precision=5)
-    def GetPerspective(self, FOV, THETA, PHI, height, width, RADIUS=128):
+    def GetPerspective(self, FOV, THETA):
         #
         # THETA is left/right angle, PHI is up/down angle, both in degree
         #
 
+        # height is fixed
+        height = 208
+        width = int(float(FOV) / 360 * self._width)
+        w_len = cp.tan(cp.radians(FOV / 2.0))
+
         equ_h = self._height
         equ_w = self._width
         equ_cx = (equ_w - 1) / 2.0
-        equ_cy = (equ_h - 1) / 2.0
 
-        wFOV = FOV
-        hFOV = float(height) / width * wFOV
+        h_len = cp.tan(cp.radians(FOV / 2.0))
 
-        c_x = (width - 1) / 2.0
-        c_y = (height - 1) / 2.0
+        x_map = cp.ones([height, width], cp.float32)
+        y_map = cp.tile(cp.linspace(-w_len, w_len, width), [height, 1])
 
-        wangle = (180 - wFOV) / 2.0
-        w_len = 2 * RADIUS * cp.sin(cp.radians(wFOV / 2.0)) / cp.sin(cp.radians(wangle))
-        w_interval = w_len / (width - 1)
+        D = cp.sqrt(x_map ** 2 + y_map ** 2)
+        xyz = cp.stack((x_map, y_map), axis=2) / cp.repeat(D[:, :, cp.newaxis], 2, axis=2)
 
-        hangle = (180 - hFOV) / 2.0
-        h_len = 2 * RADIUS * cp.sin(cp.radians(hFOV / 2.0)) / cp.sin(cp.radians(hangle))
-        h_interval = h_len / (height - 1)
-        x_map = cp.zeros([height, width], cp.float32) + RADIUS
-        y_map = cp.tile((cp.arange(0, width) - c_x) * w_interval, [height, 1])
-        z_map = -cp.tile((cp.arange(0, height) - c_y) * h_interval, [width, 1]).T
-        D = cp.sqrt(x_map ** 2 + y_map ** 2 + z_map ** 2)
-        xyz = cp.zeros([height, width, 3], float)
-        xyz[:, :, 0] = (RADIUS / D * x_map)[:, :]
-        xyz[:, :, 1] = (RADIUS / D * y_map)[:, :]
-        xyz[:, :, 2] = (RADIUS / D * z_map)[:, :]
-
+        # Rotation transormation
         y_axis = cp.array([0.0, 1.0, 0.0], cp.float32)
         z_axis = cp.array([0.0, 0.0, 1.0], cp.float32)
         [R1, _] = cv2.Rodrigues(cp.asnumpy(z_axis * cp.radians(THETA)))
         R1 = cp.array(R1)
-        [R2, _] = cv2.Rodrigues(cp.asnumpy(cp.dot(R1, y_axis) * cp.radians(-PHI)))
-        R2 = cp.array(R2)
-        # R1 = cp.array([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,1.0]])
-        # R2 = cp.array([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,1.0]])
 
-        xyz = xyz.reshape([height * width, 3]).T
-        xyz = cp.dot(R1, xyz)
-        xyz = cp.dot(R2, xyz).T
-        lat = cp.arcsin(xyz[:, 2] / RADIUS)
-        lon = cp.zeros([height * width], float)
-        theta = cp.arctan(xyz[:, 1] / xyz[:, 0])
-        idx1 = xyz[:, 0] > 0
-        idx2 = xyz[:, 1] > 0
+        xyz = xyz.reshape([height * width, 2]).T
+        xyz = cp.dot(R1[:2, :2], xyz).T
 
-        idx3 = ((1 - idx1) * idx2).astype(bool)
-        idx4 = ((1 - idx1) * (1 - idx2)).astype(bool)
-
-        lon[idx1] = theta[idx1]
-        lon[idx3] = theta[idx3] + cp.pi
-        lon[idx4] = theta[idx4] - cp.pi
+        lon = cp.arctan2(xyz[:, 1], xyz[:, 0])
         lon = lon.reshape([height, width]) / cp.pi * 180
-        lat = -lat.reshape([height, width]) / cp.pi * 180
         lon = lon / 180 * equ_cx + equ_cx
-        lat = lat / 90 * equ_cy + equ_cy
+
+        lat = cp.tile(cp.linspace(0, height - 1, height), [width, 1]).T
         lon = cp.asnumpy(lon)
         lat = cp.asnumpy(lat)
 
-
-        persp = cv2.remap(self._img, lon.astype(np.float32), lat.astype(np.float32), cv2.INTER_CUBIC, borderMode=cv2.BORDER_WRAP)
+        persp = cv2.remap(self._img, lon.astype(np.float32), lat.astype(np.float32), cv2.INTER_CUBIC,
+                          borderMode=cv2.BORDER_WRAP)
 
         return persp
 
