@@ -1,21 +1,9 @@
-import time,yaml
+import yaml
 from ray.tune.schedulers import PopulationBasedTraining
-import networkx as nx
 import sys
-from PIL import Image
-from agent import Agent
-import gym
-from gym import spaces
-from gym.utils import seeding
-from MplCanvas import MplCanvas
-from data_helper import dataHelper, coord_to_sect, coord_to_filename
-import numpy as np
-import config as app_config
-import math, cv2, h5py, argparse, csv, copy, time, os, shutil
-from pathlib import Path
 import argparse
+from pathlib import Path
 import ray
-from beogym.src.beogym import BeoGym
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.utils.annotations import override
 from ray import air, tune
@@ -31,11 +19,16 @@ from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.utils.test_utils import check_learning_achieved
 from ray.tune.logger import pretty_print
 from ray.tune.registry import get_trainable_cls
+from beogym import BeoGym
 
 
 
 
 if __name__ == "__main__":
+
+    r = 128
+    steps = 100
+
 
     torch, nn = try_import_torch()
 
@@ -163,124 +156,120 @@ if __name__ == "__main__":
         def value_function(self):
             return torch.reshape(self.torch_sub_model.value_function(), [-1])
 
-    if headless_mode:
-        #unfinished
-        env.render_headless(mode=mode, steps=steps)
+    args = parser.parse_args()
+    if args.tune:
+        args.config_file = '/lab/kiran/BeoEnv/tune.yaml'
+
+        # extract data from the config file
+    if args.machine is not None:
+        with open(args.config_file, 'r') as cfile:
+            config_data = yaml.safe_load(cfile)
+
+    args.num_workers, args.num_envs, args.num_gpus, args.gpus_worker, args.cpus_worker, args.roll_frags = config_data[args.machine]
+    ray.init(local_mode=args.local_mode)
+    if args.no_image:
+        ModelCatalog.register_custom_model(
+            "my_model", TorchNoImageModel
+        )
     else:
-        args = parser.parse_args()
-        if args.tune:
-            args.config_file = '/lab/kiran/BeoEnv/tune.yaml'
-
-            # extract data from the config file
-        if args.machine is not None:
-            with open(args.config_file, 'r') as cfile:
-                config_data = yaml.safe_load(cfile)
-
-        args.num_workers, args.num_envs, args.num_gpus, args.gpus_worker, args.cpus_worker, args.roll_frags = config_data[args.machine]
-        ray.init(local_mode=args.local_mode)
-        if args.no_image:
-            ModelCatalog.register_custom_model(
-                "my_model", TorchNoImageModel
-            )
-        else:
-            ModelCatalog.register_custom_model(
-                "my_model", TorchCustomModel
-            )
-
-        config = (
-            PPOConfig()
-                .environment(BeoGym, env_config = {"no_image":args.no_image}, clip_rewards=True)
-                .framework("torch")
-                .rollouts(num_rollout_workers=10,
-                          rollout_fragment_length=10,
-                          num_envs_per_worker=args.num_envs,
-                          ignore_worker_failures=True)
-                .training(
-                model={
-                    "custom_model": "my_model",
-                    "vf_share_layers": True,
-                    "conv_filters": [[16, [7, 13], 6], [32, [5, 13], 4], [256, [5, 14], 5]],
-                    "post_fcnet_hiddens": [64, 32],
-                },
-                lambda_=0.95,
-                kl_coeff=0.5,
-                clip_param=0.1,
-                vf_clip_param=10.0,
-                entropy_coeff=0.01,
-                train_batch_size=1000,
-                sgd_minibatch_size=100,
-                num_sgd_iter=10,
-
-            )
-                # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
-                .resources(num_gpus=args.num_gpus, num_gpus_per_worker=args.gpus_worker,
-                           num_cpus_per_worker=args.cpus_worker
-                           )
+        ModelCatalog.register_custom_model(
+            "my_model", TorchCustomModel
         )
 
+    config = (
+        PPOConfig()
+            .environment(BeoGym, env_config = {"no_image":args.no_image}, clip_rewards=True)
+            .framework("torch")
+            .rollouts(num_rollout_workers=10,
+                      rollout_fragment_length=10,
+                      num_envs_per_worker=args.num_envs,
+                      ignore_worker_failures=True)
+            .training(
+            model={
+                "custom_model": "my_model",
+                "vf_share_layers": True,
+                "conv_filters": [[16, [7, 13], 6], [32, [5, 13], 4], [256, [5, 14], 5]],
+                "post_fcnet_hiddens": [64, 32],
+            },
+            lambda_=0.95,
+            kl_coeff=0.5,
+            clip_param=0.1,
+            vf_clip_param=10.0,
+            entropy_coeff=0.01,
+            train_batch_size=1000,
+            sgd_minibatch_size=100,
+            num_sgd_iter=10,
+
+        )
+            # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
+            .resources(num_gpus=args.num_gpus, num_gpus_per_worker=args.gpus_worker,
+                       num_cpus_per_worker=args.cpus_worker
+                       )
+    )
 
 
 
-        stop = {
-            "training_iteration": args.stop_iters,
-            "timesteps_total": args.stop_timesteps,
+
+    stop = {
+        "training_iteration": args.stop_iters,
+        "timesteps_total": args.stop_timesteps,
+    }
+
+    if args.tune == False:
+        # manual training with train loop using PPO and fixed learning rate
+        if args.run != "PPO":
+            raise ValueError("Only support --run PPO with --no-tune.")
+        print("Running manual train loop without Ray Tune.")
+        # use fixed learning rate instead of grid search (needs tune)
+        # config.lr = 5e-4
+        algo = config.build()
+        # run manual training loop and print results after each iteration
+        for _ in range(10000000):
+            result = algo.train()
+            print(pretty_print(result))
+            # stop training of the target train steps or reward are reached
+            if result["timesteps_total"] >= args.stop_timesteps:
+                path_to_checkpoint = algo.save()
+                print(path_to_checkpoint)
+                break
+        algo.stop()
+    else:
+        hyperparam_mutations = {
+            "lambda": lambda: random.uniform(0.9, 1.0),
+            "clip_param": lambda: random.uniform(0.01, 0.5),
+            "lr": [1e-3, 5e-4, 1e-4, 5e-5, 1e-5],
+            "num_sgd_iter": lambda: random.randint(1, 30),
+            "sgd_minibatch_size": lambda: random.randint(128, 16384),
+            "train_batch_size": lambda: random.randint(2000, 160000),
         }
 
-        if args.tune == False:
-            # manual training with train loop using PPO and fixed learning rate
-            if args.run != "PPO":
-                raise ValueError("Only support --run PPO with --no-tune.")
-            print("Running manual train loop without Ray Tune.")
-            # use fixed learning rate instead of grid search (needs tune)
-            # config.lr = 5e-4
-            algo = config.build()
-            # run manual training loop and print results after each iteration
-            for _ in range(10000000):
-                result = algo.train()
-                print(pretty_print(result))
-                # stop training of the target train steps or reward are reached
-                if result["timesteps_total"] >= args.stop_timesteps:
-                    path_to_checkpoint = algo.save()
-                    print(path_to_checkpoint)
-                    break
-            algo.stop()
-        else:
-            hyperparam_mutations = {
-                "lambda": lambda: random.uniform(0.9, 1.0),
-                "clip_param": lambda: random.uniform(0.01, 0.5),
-                "lr": [1e-3, 5e-4, 1e-4, 5e-5, 1e-5],
-                "num_sgd_iter": lambda: random.randint(1, 30),
-                "sgd_minibatch_size": lambda: random.randint(128, 16384),
-                "train_batch_size": lambda: random.randint(2000, 160000),
-            }
+        pbt = PopulationBasedTraining(
+            time_attr="time_total_s",
+            perturbation_interval=120,
+            resample_probability=0.25,
+            # Specifies the mutations of these hyperparams
+            hyperparam_mutations=hyperparam_mutations,
+            custom_explore_fn=explore,
+        )
 
-            pbt = PopulationBasedTraining(
-                time_attr="time_total_s",
-                perturbation_interval=120,
-                resample_probability=0.25,
-                # Specifies the mutations of these hyperparams
-                hyperparam_mutations=hyperparam_mutations,
-                custom_explore_fn=explore,
-            )
+        # automated run with Tune and grid search and TensorBoard
+        print("Training automatically with Ray Tune")
+        tuner = tune.Tuner(
+            args.run,
+            tune_config=tune.TuneConfig(
+                metric="episode_reward_mean",
+                mode="max",
+                scheduler=pbt,
+                num_samples=2,
+            ),
+            param_space=config.to_dict(),
+            run_config=air.RunConfig(stop=stop),
+        )
+        results = tuner.fit()
 
-            # automated run with Tune and grid search and TensorBoard
-            print("Training automatically with Ray Tune")
-            tuner = tune.Tuner(
-                args.run,
-                tune_config=tune.TuneConfig(
-                    metric="episode_reward_mean",
-                    mode="max",
-                    scheduler=pbt,
-                    num_samples=2,
-                ),
-                param_space=config.to_dict(),
-                run_config=air.RunConfig(stop=stop),
-            )
-            results = tuner.fit()
-
-            if args.as_test:
-                print("Checking if learning goals were achieved")
-                check_learning_achieved(results, args.stop_reward)
+        if args.as_test:
+            print("Checking if learning goals were achieved")
+            check_learning_achieved(results, args.stop_reward)
 
 
  

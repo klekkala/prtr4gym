@@ -164,25 +164,6 @@ if __name__ == "__main__":
             print("Flushing ;)", flush=True)
 
 
-    class TorchVaeModel(TorchModelV2, nn.Module):
-
-        def __init__(self, obs_space, action_space, num_outputs, model_config, name):
-            TorchModelV2.__init__(
-                self, obs_space, action_space, num_outputs, model_config, name
-            )
-            nn.Module.__init__(self)
-
-            self.torch_sub_model = TorchVae(
-                obs_space, action_space, num_outputs, model_config, name
-            )
-
-        def forward(self, input_dict, state, seq_lens):
-            # input_dict["obs"]["obs"] = input_dict["obs"]["obs"].float()
-            fc_out, _ = self.torch_sub_model(input_dict, state, seq_lens)
-            return fc_out, []
-
-        def value_function(self):
-            return torch.reshape(self.torch_sub_model.value_function(), [-1])
 
     class PreTrainedTorchResModel(TorchModelV2, nn.Module):
 
@@ -204,25 +185,7 @@ if __name__ == "__main__":
         def value_function(self):
             return torch.reshape(self.torch_sub_model.value_function(), [-1])
 
-    class TorchResModel(TorchModelV2, nn.Module):
 
-        def __init__(self, obs_space, action_space, num_outputs, model_config, name):
-            TorchModelV2.__init__(
-                self, obs_space, action_space, num_outputs, model_config, name
-            )
-            nn.Module.__init__(self)
-
-            self.torch_sub_model = TorchRes(
-                obs_space, action_space, num_outputs, model_config, name
-            )
-
-        def forward(self, input_dict, state, seq_lens):
-            # input_dict["obs"]["obs"] = input_dict["obs"]["obs"].float()
-            fc_out, _ = self.torch_sub_model(input_dict, state, seq_lens)
-            return fc_out, []
-
-        def value_function(self):
-            return torch.reshape(self.torch_sub_model.value_function(), [-1])
 
 
     args = parser.parse_args()
