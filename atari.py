@@ -27,9 +27,9 @@ from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 #from ray.rllib.models.torch.fcnet import FullyConnectedNetwork as TorchFC
 #from Vo import FullyConnectedNetwork as TorchFC
 #from ray.rllib.models.torch.visionnet import VisionNetwork as TorchFC
-from models.AtariModels import VaeNetwork as TorchVae
-from models.AtariModels import PreTrainedResNetwork as TorchPreTrainedRes
-from models.AtariModels import ResNetwork as TorchRes
+#from models.AtariModels import VaeNetwork as TorchVae
+#from models.AtariModels import PreTrainedResNetwork as TorchPreTrainedRes
+#from models.AtariModels import ResNetwork as TorchRes
 from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.utils.test_utils import check_learning_achieved
 from ray.tune.logger import pretty_print, UnifiedLogger, Logger, LegacyLoggerCallback
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model",
-        choices=["vae", "res", "random", "imagenet", "voltron", "r3m", "value"],
+        choices=["vae", "res", "fcnet","random", "imagenet", "voltron", "r3m", "value"],
         default="vae",
     )
     parser.add_argument(
@@ -67,10 +67,10 @@ if __name__ == "__main__":
         "--machine", type=str, default="None", help="machine to be training"
     )
     parser.add_argument(
-        "--config", type=str, default="/lab/kiran/BeoEnv/hostfile.yaml", help="config file for resources"
+        "--config", type=str, default="/lab/kiran/beoenv/hostfile.yaml", help="config file for resources"
     )
     parser.add_argument(
-        "--log", type=str, default="/lab/kiran/logs/rllib/atari", help="config file for resources"
+        "--log", type=str, default="/lab/kiran/logs/rllib/baselineatari", help="config file for resources"
     )
     parser.add_argument(
         "--env_name", type=str, default="ALE/Pong-v5", help="ALE/Pong-v5"
@@ -164,7 +164,7 @@ if __name__ == "__main__":
             print("Flushing ;)", flush=True)
 
 
-
+    """
     class PreTrainedTorchResModel(TorchModelV2, nn.Module):
 
         def __init__(self, obs_space, action_space, num_outputs, model_config, name):
@@ -185,13 +185,13 @@ if __name__ == "__main__":
         def value_function(self):
             return torch.reshape(self.torch_sub_model.value_function(), [-1])
 
-
+    """
 
 
     args = parser.parse_args()
     
     if args.tune:
-        args.config = '/lab/kiran/BeoEnv/tune.yaml'
+        args.config = '/lab/kiran/beoenv/tune.yaml'
 
     #extract data from the config file
     if args.machine is not None:
@@ -201,7 +201,7 @@ if __name__ == "__main__":
     args.num_workers, args.num_envs, args.num_gpus, args.gpus_worker, args.cpus_worker, args.roll_frags = config_data[args.machine]
     
     ray.init(local_mode=args.local_mode)
-
+    """
     if args.model=='vae':
         ModelCatalog.register_custom_model(
             "my_model", TorchVaeModel
@@ -214,10 +214,12 @@ if __name__ == "__main__":
         ModelCatalog.register_custom_model(
             "my_model", TorchResModel
         )
-
+    """
 
     str_logger = args.env_name + "_" + args.model + "_" + str(args.stop_timesteps) + "_lr" + str(args.lr) + "_lam" + str(args.lambda_) + "_kl" + str(args.kl_coeff) + "_cli" + str(args.clip_param) + "_ent" + str(args.entropy_coeff) + "_gam" + str(args.gamma) + "_buf" + str(args.buffer_size) + "_bat" + str(args.batch_size) + "_num" + str(args.num_epoch)
-    config = {
+    
+    if args.model=='fcnet':
+         config = {
             "env" : args.env_name,
             "clip_rewards" : True,
             "framework" : "torch",
@@ -230,7 +232,38 @@ if __name__ == "__main__":
             "rollout_fragment_length" : args.roll_frags,
             "num_envs_per_worker" : args.num_envs,
             "model":{
-                    "custom_model" : "my_model",
+                    "vf_share_layers" : True,
+            },
+            #"lambda_" : args.lambda_,
+            "kl_coeff" : args.kl_coeff,
+            "clip_param" : args.clip_param,
+            "entropy_coeff" : args.entropy_coeff,
+            "gamma" : args.gamma,
+            "vf_clip_param" : args.vf_clip,
+            "train_batch_size":args.buffer_size,
+            "sgd_minibatch_size":args.batch_size,
+            "num_sgd_iter":args.num_epoch,
+            # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
+            "num_gpus":args.num_gpus,
+            "num_gpus_per_worker" : args.gpus_worker,
+            "num_cpus_per_worker":args.cpus_worker
+            }
+
+    else:
+        config = {
+            "env" : args.env_name,
+            "clip_rewards" : True,
+            "framework" : "torch",
+            "logger_config": {
+                "type": UnifiedLogger,
+                "logdir": os.path.expanduser(args.log) + '/' + str_logger
+                },
+            "observation_filter":"NoFilter",
+            "num_workers":args.num_workers,
+            "rollout_fragment_length" : args.roll_frags,
+            "num_envs_per_worker" : args.num_envs,
+            "model":{
+                    #"custom_model" : "my_model",
                     "vf_share_layers" : True,
             },
             #"lambda_" : args.lambda_,
