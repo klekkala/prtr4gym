@@ -13,6 +13,7 @@ from arguments import get_args
 import os
 import random
 import numpy as np
+from pytorch_metric_learning import losses
 import math
 from IPython.display import clear_output
 from PIL import Image
@@ -22,7 +23,7 @@ import initial
 
 args = get_args()
 
-encodernet, trainloader, div_val, start_epoch, loss_log, optimizer, device = initial.initialize(True)
+encodernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(True)
 
 
 # %% Start Training
@@ -33,21 +34,49 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
     encodernet.train()
     loss_iter = []
     
+    #contrastive case: for i, (img_batch1, img_batch2, pair) in enumerate(tqdm(trainloader, leave=False)):
+    #img_batch1, img_batch2 -> [B, T, H, W]
     for i, (img, target) in enumerate(tqdm(trainloader, leave=False)):
 
         image_reshape_val = img.to(device)/div_val
-        targ = target.to(device)/div_val
         
-        
-        #batch of reconstructions and mu, logvar embeddings
-        recon_data, mu, logvar = encodernet(image_reshape_val)
-        #in the constrastive case, we get a batch of pair of embeddings
+        #4STACK: [Bx4xHxW, class]
+        #1CHANLSTM: B, class
 
 
-        loss = utils.vae_loss(recon_data, targ, mu, logvar, args.kl_weight)            
-        #input to the loss function is going to be 2 embeddings and perhaps a bool to see if they belong to the same pairwise distance
-        #loss = utils.cont_loss(embeddings, targ, mu, logvar, args.kl_weight)
-        
+
+        if 'CONT' in args.model and 'LSTM' in args.model:
+
+            #4STACK: [Bx4xHxW, B]
+            #4STACK: [Bx4xD, B]
+            embeddings = encodernet(image_reshape_val)
+            loss_func = losses.ContrastiveLoss()
+            loss = loss_func(embeddings, target)
+            #in the case of lstm: we do temporal unfolding and then compute the embeddings
+            #Look into this tomorrow (4th July)
+            #1CHANLSTM: [BxTxHxW, BxT]
+            #1CHANLSTM: [BxTxD, BxT]
+            #1CHANLSTM: [{B+T}xD, {B+T}]
+
+        elif 'CONT' in args.model:
+            embeddings = encodernet(image_reshape_val)
+            loss_func = losses.ContrastiveLoss()
+            loss = loss_func(embeddings, target)
+
+        else:
+
+            targ = target.to(device)/div_val         
+            
+
+            recon_data, mu, logvar = encodernet(image_reshape_val)
+
+
+            #in the constrastive case, we get a batch of pair of embeddings and wheather they are positive or negative
+    
+            loss = utils.vae_loss(recon_data, targ, mu, logvar, args.kl_weight)            
+            #input to the loss function is going to be 2 embeddings and perhaps a bool to see if they belong to the same pairwise distance
+            #loss = utils.cont_loss(embeddings, targ, mu, logvar, args.kl_weight)
+            
         
         #loss = loss_fn()
         loss_iter.append(loss.item())

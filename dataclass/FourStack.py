@@ -8,14 +8,14 @@ from IPython import embed
 import torch
 
 class FourStack(BaseDataset):
-    def __init__(self, root_dir, max_len, action=False, reward=False, terminal=False, goal=False, transform=None):
-        super().__init__(root_dir, max_len, action=False, reward=False, terminal=False, goal=False, transform=None)
+    def __init__(self, root_dir, max_len, transform=None):
+        super().__init__(root_dir, max_len, transform, action=False, reward=False, terminal=False, goal=False)
 
 
     def __getitem__(self, item):
         file_ind = int(item/1000000)
         im_ind = item - (file_ind*1000000)
-        img = self.all_nps[file_ind][im_ind].astype(np.float32)
+        img = self.obs_nps[file_ind][im_ind].astype(np.float32)
         tar = img
         #img = np.expand_dims(self.all_nps[file_ind][im_ind], axis=0).astype(np.float32) 
         #tar = img

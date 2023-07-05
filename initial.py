@@ -17,8 +17,9 @@ from IPython.display import clear_output
 from PIL import Image
 from tqdm import trange, tqdm
 #from RES_VAE import VAE as VAE
-from models.atari_vae import VAE as VAE
-from dataclass import BaseDataset, FourStack, ThreeChannel, Atari101, SingleChannel
+from models.atari_vae import VAE
+from models.atari_vae import Encoder
+from dataclass import BaseDataset, FourStack, ThreeChannel, SingleChannel, SingleAtari101, ContFourStack
 import utils
 from arguments import get_args
 args = get_args()
@@ -34,10 +35,10 @@ def initialize(is_train):
     print(device)
     # %%
 
-    count_map = {"medium_1chan_beamrider": 1000000, "all_1chan_beamrider": 3000000, "medium_1chan_train": 5000000, "medium_1chan_test": 4000000, "medium_1chan_beamrider": 4000000, "medium_4stack_beamrider": 1000000, "medium_4stack_train": 5000000, "medium_4stack_test": 4000000}
+    count_map = {"trained_4stack_beamrider": 948454, "medium_1chan_beamrider": 1000000, "expert_1chan_beamrider": 1000000, "all_1chan_beamrider": 3000000, "medium_1chan_train": 5000000, "medium_1chan_test": 4000000, "medium_1chan_beamrider": 4000000, "medium_4stack_beamrider": 1000000, "expert_4stack_beamrider": 1000000, "medium_4stack_train": 5000000, "medium_4stack_test": 4000000}
 
     if args.machine == "iGpu10":
-        root_dir = "/home6/tmp/kiran/"
+        root_dir = "/dev/shm/"
     elif args.machine == "iGpu14":
         #root_dir = "/home3/tmp/kiran/"
         root_dir = "/dev/shm/"
@@ -47,13 +48,19 @@ def initialize(is_train):
         root_dir = "/dev/shm/"
     elif args.machine == "iGpu15":
         root_dir = "/dev/shm/"
+    elif args.machine == "iGpu11":
+        root_dir = "/dev/shm/"
+    elif args.machine == "iGpu21":
+        root_dir = "/dev/shm/"
     else:
+        print("SELECTING DEFAULT DIRECTORY!")
         root_dir = "/home/tmp/kiran/"
 
 
     image_size = 84
     #OLD once changed on 5 june
     transform = T.Compose([T.Resize(image_size), T.ToTensor()])
+    
     #transform = T.Compose([T.ToTensor()])
 
     #stacking four frames. deepmind style
@@ -69,8 +76,8 @@ def initialize(is_train):
 
     #incase you need a rgb model atari
     elif args.model == "1CHAN_VAE_ATARI101":
-        trainset = ThreeChannel.ThreeChannel(root_dir='/home3/kiran/train/', max_len=count_map[args.expname], transform=transform)
-        encodernet = VAE(channel_in=3, ch=32, z=512).to(device)
+        trainset = SingleAtari101.SingleAtari101(root_dir=root_dir + args.expname, transform=transform)
+        encodernet = VAE(channel_in=1, ch=32, z=512).to(device)
         div_val = 1.0
 
     #single channel vae used for notemp and lstm mode
@@ -86,9 +93,9 @@ def initialize(is_train):
     # BUT ULTIMATELY.. THE LOSS FUNCTION MUST GET EMBEDDINGS AND IF THEY ARE POSITIVE OR NEGATIVE
 
     elif args.model == "4STACK_CONT_ATARI":
-        trainset = ContAtari.ContAtari(root_dir='/home6/kiran/datasets/', transform=transform)
-        encodernet = VAE(channel_in=4, ch=32, z=512).to(device)
-        #encodernet = Encoder()
+        trainset = ContFourStack.ContFourStack(root_dir=root_dir + args.expname, max_len=count_map[args.expname], transform=transform)
+        encodernet = Encoder(channel_in=4, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
         div_val = 255.0
 
     elif args.model == "CONTLSTM_ATARI":
@@ -115,8 +122,8 @@ def initialize(is_train):
     if is_train:
         trainloader, _ = utils.get_data_STL10(trainset, None, transform, args.batch_size)
     else:
-        trainloader, _ = utils.get_data_STL10(trainset, None, transform, 5)
-
+        trainloader, _ = utils.get_data_STL10(trainset, None, transform, 20)
+        args.load_checkpoint = True
 
     # setup optimizer
     optimizer = optim.Adam(encodernet.parameters(), lr=args.lr, betas=(0.5, 0.999))
@@ -130,7 +137,12 @@ def initialize(is_train):
         os.makedirs(curr_dir + "/Results")
 
     if args.load_checkpoint:
-        checkpoint = torch.load(args.save_dir + args.model + "_" + args.expname.upper() + ".pt", map_location="cpu")
+        
+        if args.model_path == "":
+            model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(args.kl_weight) + "_" + str(args.batch_size) + ".pt"
+        else:
+            model_path = args.save_dir + args.model_path
+        checkpoint = torch.load(model_path, map_location="cpu")
         print("Checkpoint loaded")
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         encodernet.load_state_dict(checkpoint['model_state_dict'])
@@ -146,4 +158,4 @@ def initialize(is_train):
         start_epoch = 0
 
         
-    return encodernet, trainloader, div_val, start_epoch, loss_log, optimizer, device
+    return encodernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir

@@ -19,7 +19,7 @@ def get_args():
     )
     parser.add_argument(
         "--machine",
-        choices=["iGpu", "iGpu8", "iGpu10", "iGpu14", "iGpu9", "iGpu24", "iGpu15"],
+        choices=["iGpu", "iGpu8", "iGpu10", "iGpu11", "iGpu14", "iGpu9", "iGpu24", "iGpu21", "iGpu15"],
         default="e2e",
     )
     parser.add_argument(
@@ -29,10 +29,13 @@ def get_args():
     parser.add_argument(
         "--test", action="store_true", default=False, help="test mode or train mode"
     )
-
+    
     parser.add_argument(
         "--save_dir", type=str, default="/lab/kiran/ckpts/pretrained/atari/", help="pretrained results"
     )
+    parser.add_argument(
+        "--model_path", type=str, default="", help="pretrained results"
+    )    
     parser.add_argument(
         "--expname", type=str, default="all", help="pretrained results"
     )
@@ -50,7 +53,7 @@ def get_args():
         "--kl_weight", type=float, default=.01, help="pretrained results"
     )
     parser.add_argument(
-        "--lr", type=float, default=1e-4, help="pretrained results"
+        "--lr", type=float, default=1e-5, help="pretrained results"
     )
 
     args = parser.parse_args()

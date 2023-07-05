@@ -6,14 +6,14 @@ import numpy as np
 import os
 from IPython import embed
 
-class SingleChannel(BaseDataset):
+class ContSingleLSTM(BaseDataset):
     def __init__(self, root_dir, max_len, transform=None):
-        super().__init__(root_dir, max_len, transform, action=False, reward=False, terminal=False, goal=False)
+        super().__init__(root_dir, max_len, transform, action=True, reward=True, terminal=True, goal=False)
 
     def __getitem__(self, item):
         file_ind = int(item/1000000)
         im_ind = item - (file_ind*1000000)
-        img = np.expand_dims(self.obs_nps[file_ind][im_ind], axis=0).astype(np.float32)
+        img = np.expand_dims(self.all_nps[file_ind][im_ind], axis=0).astype(np.float32)
 
         target = img
 

@@ -102,5 +102,33 @@ class VAE(nn.Module):
         mu = torch.flatten(mu, start_dim=1)
         log_var = torch.flatten(log_var, start_dim=1)
         encoding = self.sample(mu, log_var)
+        encoding = mu
         return self.decoder(encoding), mu, log_var
         #return mu
+
+
+
+class Encoder(nn.Module):
+    def __init__(self, channel_in=3, ch=16, z=64, h_dim=512):
+        super(Encoder, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.ZeroPad2d((2, 2, 2, 2)),
+            nn.Conv2d(channel_in, ch, kernel_size=(8, 8), stride=(4, 4)),
+            nn.ReLU(),
+            nn.ZeroPad2d((1, 2, 1, 2)),
+            nn.Conv2d(ch, ch*2, kernel_size=(4, 4), stride=(2, 2)),
+            nn.ReLU(),
+            nn.Conv2d(ch*2, ch*32, kernel_size=(11, 11), stride=(1, 1)),
+            nn.ReLU(),
+
+        )
+
+        self.conv_mu = nn.Conv2d(ch*32, z, 1, 1)
+
+
+        
+    def forward(self, x):
+        h = self.encoder(x)
+        mu = self.conv_mu(h)
+        mu = torch.flatten(mu, start_dim=1)
+        return mu
