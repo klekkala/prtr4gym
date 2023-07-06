@@ -5,10 +5,19 @@ from torch.autograd import Variable
 
 
 
-"""
-class VAE(nn.Module):
+class Flatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), -1)
+
+
+class UnFlatten(nn.Module):
+    def forward(self, input, size=512):
+        return input.view(input.size(0), size, 1, 1)
+
+
+class BEVEncoder(nn.Module):
     def __init__(self, channel_in=3, ch=32, z=64, h_dim=512):
-        super(VAE, self).__init__()
+        super(BEVEncoder, self).__init__()
         self.encoder = nn.Sequential(
             nn.Conv2d(channel_in, ch, kernel_size=4, stride=2),
             nn.ReLU(),
@@ -50,16 +59,7 @@ class VAE(nn.Module):
         encoding = self.sample(mu, log_var)
         return self.decoder(encoding), mu, log_var
         #return mu
-"""
 
-class Flatten(nn.Module):
-    def forward(self, input):
-        return input.view(input.size(0), -1)
-
-
-class UnFlatten(nn.Module):
-    def forward(self, input, size=512):
-        return input.view(input.size(0), size, 1, 1)
         
 class VAE(nn.Module):
     def __init__(self, channel_in=3, ch=16, z=64, h_dim=512):
