@@ -8,17 +8,21 @@ import torchvision.models as models
 import torchvision.utils as vutils
 from collections import defaultdict
 import imageio as iio
+from IPython import embed
+from models.atarimodels import SingleAtariModel
 from torch.hub import load_state_dict_from_url
 import os
 import random
 import numpy as np
 import math
+from ray.rllib.policy.policy import Policy
 from IPython.display import clear_output
+from ray.rllib.models import ModelCatalog
 from PIL import Image
 from tqdm import trange, tqdm
 #from RES_VAE import VAE as VAE
 from models.atari_vae import VAE
-from models.atari_vae import Encoder
+from models.atari_vae import Encoder, TEncoder
 from dataclass import BaseDataset, FourStack, ThreeChannel, SingleChannel, SingleAtari101, ContFourStack
 import utils
 from arguments import get_args
@@ -35,7 +39,7 @@ def initialize(is_train):
     print(device)
     # %%
 
-    count_map = {"trained_4stack_beamrider": 948454, "medium_1chan_beamrider": 1000000, "expert_1chan_beamrider": 1000000, "all_1chan_beamrider": 3000000, "medium_1chan_train": 5000000, "medium_1chan_test": 4000000, "medium_1chan_beamrider": 4000000, "medium_4stack_beamrider": 1000000, "expert_4stack_beamrider": 1000000, "medium_4stack_train": 5000000, "medium_4stack_test": 4000000}
+    count_map = {"trained_4stack_beamrider": 948454, "medium_1chan_beamrider": 1000000, "expert_1chan_beamrider": 1000000, "all_1chan_beamrider": 3000000, "medium_1chan_train": 5000000, "medium_1chan_test": 4000000, "medium_1chan_beamrider": 4000000, "medium_4stack_beamrider": 1000000, "expert_4stack_beamrider": 1000000, "all_4stack_beamrider": 3000000, "medium_4stack_train": 5000000, "medium_4stack_test": 4000000}
 
     if args.machine == "iGpu10":
         root_dir = "/dev/shm/"
@@ -93,8 +97,35 @@ def initialize(is_train):
     # BUT ULTIMATELY.. THE LOSS FUNCTION MUST GET EMBEDDINGS AND IF THEY ARE POSITIVE OR NEGATIVE
 
     elif args.model == "4STACK_CONT_ATARI":
-        trainset = ContFourStack.ContFourStack(root_dir=root_dir + args.expname, max_len=count_map[args.expname], transform=transform)
+        trainset = ContFourStack.ContFourStack(root_dir=root_dir + args.expname, max_len=count_map[args.expname], transform=transform, sample_next=args.sample_next)
         encodernet = Encoder(channel_in=4, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
+    elif args.model == "DUAL_4STACK_CONT_ATARI":
+        trainset = ContFourStack.ContFourStack(root_dir=root_dir + args.expname, max_len=count_map[args.expname], transform=transform)
+        teachernet = TEncoder(channel_in=4, ch=16, z=512).to(device)
+
+        #load teacher_encoder ckpt        
+        ModelCatalog.register_custom_model("model", SingleAtariModel)
+        load_ckpt = Policy.from_checkpoint("/lab/kiran/logs/rllib/atari/4stack/1.a_BeamRiderNoFrameskip-v4_singlegame_full_e2e_PolicyNotLoaded_0.0_20000_2000_4stack/23_07_04_18_11_34/checkpoint").get_weights()
+
+        #transfer weights to prtr model
+        model_state_dict = {}
+        model_state_dict['encoder.1.weight'] = torch.from_numpy(load_ckpt['_convs.0._model.1.weight'])
+        model_state_dict['encoder.1.bias'] = torch.from_numpy(load_ckpt['_convs.0._model.1.bias'])
+        model_state_dict['encoder.4.weight'] = torch.from_numpy(load_ckpt['_convs.1._model.1.weight'])
+        model_state_dict['encoder.4.bias'] = torch.from_numpy(load_ckpt['_convs.1._model.1.bias'])
+        model_state_dict['encoder.6.weight'] = torch.from_numpy(load_ckpt['_convs.2._model.0.weight'])
+        model_state_dict['encoder.6.bias'] = torch.from_numpy(load_ckpt['_convs.2._model.0.bias'])
+
+        teachernet.eval()
+        for param in teachernet.parameters():
+            param.requires_grad = False
+        teachernet.load_state_dict(model_state_dict)
+
+        #initialize student model
+        encodernet = TEncoder(channel_in=4, ch=16, z=512).to(device)
         print(root_dir, args.expname)
         div_val = 255.0
 
@@ -120,7 +151,7 @@ def initialize(is_train):
     #test_images, _ = dataiter.next()
 
     if is_train:
-        trainloader, _ = utils.get_data_STL10(trainset, None, transform, args.batch_size)
+        trainloader, _ = utils.get_data_STL10(trainset, None, transform, args.sample_batch_size)
     else:
         trainloader, _ = utils.get_data_STL10(trainset, None, transform, 20)
         args.load_checkpoint = True
@@ -139,7 +170,7 @@ def initialize(is_train):
     if args.load_checkpoint:
         
         if args.model_path == "":
-            model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(args.kl_weight) + "_" + str(args.batch_size) + ".pt"
+            model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(args.kl_weight) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt"
         else:
             model_path = args.save_dir + args.model_path
         checkpoint = torch.load(model_path, map_location="cpu")
@@ -157,5 +188,7 @@ def initialize(is_train):
         #    print("Starting from scratch")
         start_epoch = 0
 
-        
-    return encodernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
+    if 'DUAL' in args.model:
+        return encodernet, teachernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
+    else:
+        return encodernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir

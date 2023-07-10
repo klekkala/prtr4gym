@@ -14,7 +14,7 @@ def get_args():
     )
     parser.add_argument(
         "--model",
-        choices=["4STACK_VAE_ATARI", "3CHANRGB_VAE_ATARI101", "1CHAN_VAE_ATARI101", "3CHAN_VAE_ATARI", "1CHAN_VAE_ATARI", "1CHAN_CONT_ATARI", "4STACK_CONT_ATARI"],
+        choices=["4STACK_VAE_ATARI", "3CHANRGB_VAE_ATARI101", "1CHAN_VAE_ATARI101", "3CHAN_VAE_ATARI", "1CHAN_VAE_ATARI", "1CHAN_CONT_ATARI", "4STACK_CONT_ATARI", "DUAL_4STACK_CONT_ATARI"],
         default="e2e",
     )
     parser.add_argument(
@@ -40,20 +40,25 @@ def get_args():
         "--expname", type=str, default="all", help="pretrained results"
     )
     parser.add_argument(
-        "--nepoch", type=int, default=100, help="pretrained results"
+        "--nepoch", type=int, default=200, help="pretrained results"
     )
     parser.add_argument(
         "--gpu_id", type=int, default=0, help="GPU ID"
     )
     parser.add_argument(
-        "--batch_size", type=int, default=128, help="pretrained results"
-    )
-
-    parser.add_argument(
-        "--kl_weight", type=float, default=.01, help="pretrained results"
+        "--sample_next", type=int, default=5, help="GPU ID"
     )
     parser.add_argument(
-        "--lr", type=float, default=1e-5, help="pretrained results"
+        "--sample_batch_size", type=int, default=64, help="pretrained results"
+    )
+    parser.add_argument(
+        "--train_batch_size", type=int, default=256, help="pretrained results"
+    )
+    parser.add_argument(
+        "--kl_weight", type=float, default=0.04, help="pretrained results"
+    )
+    parser.add_argument(
+        "--lr", type=float, default=1e-6, help="pretrained results"
     )
 
     args = parser.parse_args()
