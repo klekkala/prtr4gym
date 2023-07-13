@@ -14,7 +14,7 @@ def get_args():
     )
     parser.add_argument(
         "--model",
-        choices=["4STACK_VAE_ATARI", "3CHANRGB_VAE_ATARI101", "1CHAN_VAE_ATARI101", "3CHAN_VAE_ATARI", "1CHAN_VAE_ATARI", "1CHAN_CONT_ATARI", "4STACK_CONT_ATARI", "DUAL_4STACK_CONT_ATARI"],
+        choices=["BEV_VAE_CARLA", "4STACK_VAE_ATARI", "3CHANRGB_VAE_ATARI101", "1CHAN_VAE_ATARI101", "3CHAN_VAE_ATARI", "1CHAN_VAE_ATARI", "1CHAN_CONT_ATARI", "4STACK_CONT_ATARI", "DUAL_4STACK_CONT_ATARI"],
         default="e2e",
     )
     parser.add_argument(

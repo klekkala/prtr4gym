@@ -21,9 +21,9 @@ from ray.rllib.models import ModelCatalog
 from PIL import Image
 from tqdm import trange, tqdm
 #from RES_VAE import VAE as VAE
-from models.atari_vae import VAE
+from models.atari_vae import VAE, VAEBEV
 from models.atari_vae import Encoder, TEncoder
-from dataclass import BaseDataset, FourStack, ThreeChannel, SingleChannel, SingleAtari101, ContFourStack
+from dataclass import BaseDataset, FourStack, ThreeChannel, SingleChannel, SingleAtari101, ContFourStack, CarlaBEV
 import utils
 from arguments import get_args
 args = get_args()
@@ -68,7 +68,12 @@ def initialize(is_train):
     #transform = T.Compose([T.ToTensor()])
 
     #stacking four frames. deepmind style
-    if args.model == "4STACK_VAE_ATARI":
+    if args.model == "BEV_VAE_CARLA":
+        trainset = CarlaBEV.CarlaBEV(root_dir= root_dir + args.expname, transform=transform)
+        encodernet = VAEBEV(channel_in=1, ch=16, z=32).to(device)
+        div_val = 255.0
+    
+    elif args.model == "4STACK_VAE_ATARI":
         trainset = FourStack.FourStack(root_dir= root_dir + args.expname, max_len=count_map[args.expname], transform=transform)
         encodernet = VAE(channel_in=4, ch=32, z=512).to(device)
         div_val = 255.0

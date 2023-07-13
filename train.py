@@ -84,7 +84,6 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
 
             targ = target.to(device)/div_val         
             
-
             recon_data, mu, logvar = encodernet(image_reshape_val)
 
 
