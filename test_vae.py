@@ -39,6 +39,6 @@ for i, (test_images, _) in enumerate(tqdm(testloader, leave=False)):
             test_images = test_images.reshape(20, 1, 84, 84)
             recon_data = recon_data.reshape(20, 1, 84, 84)
         vutils.save_image(torch.cat((torch.sigmoid(recon_data).cpu(), test_images), 2),
-                            "%s/%s/%s_%s.png" % (curr_dir, "Results", args.model, args.expname.upper() + "_" + str(args.kl_weight)))
+                            "%s/%s/%s_%s.png" % (curr_dir, "Results", args.model, args.expname.upper() + "_" + args.kl_weight))
 
         break

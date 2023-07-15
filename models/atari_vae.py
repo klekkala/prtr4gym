@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from IPython import embed
+
 
 
 class Flatten(nn.Module):
@@ -13,7 +13,6 @@ class Flatten(nn.Module):
 class UnFlatten(nn.Module):
     def forward(self, input, size=512):
         return input.view(input.size(0), size, 1, 1)
-
 
 
 class VAEBEV(nn.Module):

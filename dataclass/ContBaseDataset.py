@@ -6,10 +6,9 @@ import os
 from IPython import embed
 
 class ContBaseDataset(Dataset):
-    def __init__(self, root_dir, num_games, max_len, transform=None, action=False, reward=False, terminal=False, goal=False):
+    def __init__(self, root_dir, num_games, transform=None, action=False, reward=False, terminal=False, goal=False):
         self.root_dir = root_dir
         self.transform = transform
-        self.max_len = max_len
         self.num_games = num_games
         self.obs_nps = [[] for _ in self.num_games]
         self.action_nps = [[] for _ in self.num_games]

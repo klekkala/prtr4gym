@@ -22,8 +22,9 @@ from PIL import Image
 from tqdm import trange, tqdm
 #from RES_VAE import VAE as VAE
 from models.atari_vae import VAE, VAEBEV
+from models.atari_vae import VAE as BEVLSTM
 from models.atari_vae import Encoder, TEncoder
-from dataclass import BaseDataset, FourStack, ThreeChannel, SingleChannel, SingleAtari101, ContFourStack, CarlaBEV
+from dataclass import BaseDataset, FourStack, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, PosContFourStack, NegContFourStack
 import utils
 from arguments import get_args
 args = get_args()
@@ -31,7 +32,7 @@ args = get_args()
 
 def initialize(is_train):
 
-    
+    root_dir = "/dev/shm/"
     curr_dir = os.getcwd()
     use_cuda = torch.cuda.is_available()
     print(use_cuda)
@@ -39,47 +40,38 @@ def initialize(is_train):
     print(device)
     # %%
 
-    count_map = {"trained_4stack_beamrider": 948454, "medium_1chan_beamrider": 1000000, "expert_1chan_beamrider": 1000000, "all_1chan_beamrider": 3000000, "medium_1chan_train": 5000000, "medium_1chan_test": 4000000, "medium_1chan_beamrider": 4000000, "medium_4stack_beamrider": 1000000, "expert_4stack_beamrider": 1000000, "all_4stack_beamrider": 3000000, "medium_4stack_train": 5000000, "medium_4stack_test": 4000000}
 
-    if args.machine == "iGpu10":
-        root_dir = "/dev/shm/"
-    elif args.machine == "iGpu14":
-        #root_dir = "/home3/tmp/kiran/"
-        root_dir = "/dev/shm/"
-    elif args.machine == "iGpu":
-        root_dir = "/dev/shm/"
-    elif args.machine == "iGpu24":
-        root_dir = "/dev/shm/"
-    elif args.machine == "iGpu15":
-        root_dir = "/dev/shm/"
-    elif args.machine == "iGpu11":
-        root_dir = "/dev/shm/"
-    elif args.machine == "iGpu21":
-        root_dir = "/dev/shm/"
-    else:
-        print("SELECTING DEFAULT DIRECTORY!")
-        root_dir = "/home/tmp/kiran/"
-
-
-    image_size = 84
+    #image_size = 84
+    #if something looks wrong.. look at the transform line
     #OLD once changed on 5 june
-    transform = T.Compose([T.Resize(image_size), T.ToTensor()])
+    #transform = T.Compose([T.Resize(image_size), T.ToTensor()])
     
-    #transform = T.Compose([T.ToTensor()])
+    transform = T.Compose([T.ToTensor()])
 
-    #stacking four frames. deepmind style
     if args.model == "BEV_VAE_CARLA":
         trainset = CarlaBEV.CarlaBEV(root_dir= root_dir + args.expname, transform=transform)
         encodernet = VAEBEV(channel_in=1, ch=16, z=32).to(device)
         div_val = 255.0
     
+    #CHEN
+    elif args.model == "BEV_LSTM_CARLA":
+        trainset = SingleChannelLSTM.SingleChannelLSTM(root_dir= root_dir + args.expname, transform=transform)
+        encodernet = VAEBEV(channel_in=1, ch=16, z=32).to(device)
+        model_path = "/lab/kiran/ckpts/pretrained/carla/BEV_VAE_CARLA_RANDOM_BEV_CARLA_E2E_0.01_256_64.pt"
+        checkpoint = torch.load(model_path, map_location="cpu")
+        encodernet.load_state_dict(checkpoint['model_state_dict'])
+        #encodernet = BEVLSTM(encoder=encodernet).to(device)
+        
+        div_val = 255.0
+
+
     elif args.model == "4STACK_VAE_ATARI":
-        trainset = FourStack.FourStack(root_dir= root_dir + args.expname, max_len=count_map[args.expname], transform=transform)
+        trainset = FourStack.FourStack(root_dir= root_dir + args.expname, transform=transform)
         encodernet = VAE(channel_in=4, ch=32, z=512).to(device)
         div_val = 255.0
 
     elif args.model == "3CHANRGB_VAE_ATARI101":
-        trainset = Atari101.Atari101(root_dir='/lab/kiran/vae_d4rl/', max_len=count_map[args.expname], transform=transform)
+        trainset = Atari101.Atari101(root_dir='/lab/kiran/vae_d4rl/', transform=transform)
         encodernet = VAE(channel_in=3, ch=32, z=512).to(device)
         div_val = 1.0
 
@@ -91,7 +83,7 @@ def initialize(is_train):
 
     #single channel vae used for notemp and lstm mode
     elif args.model == "1CHAN_VAE_ATARI":
-        trainset = SingleChannel.SingleChannel(root_dir=root_dir + args.expname, max_len=count_map[args.expname], transform=transform)
+        trainset = SingleChannel.SingleChannel(root_dir=root_dir + args.expname, transform=transform)
         encodernet = VAE(channel_in=1, ch=32, z=512).to(device)
         div_val = 255.0
 
@@ -102,13 +94,18 @@ def initialize(is_train):
     # BUT ULTIMATELY.. THE LOSS FUNCTION MUST GET EMBEDDINGS AND IF THEY ARE POSITIVE OR NEGATIVE
 
     elif args.model == "4STACK_CONT_ATARI":
-        trainset = ContFourStack.ContFourStack(root_dir=root_dir + args.expname, max_len=count_map[args.expname], transform=transform, sample_next=args.sample_next)
+        negset = NegContFourStack.NegContFourStack(root_dir= root_dir + args.expname, transform=transform)
+        posset = PosContFourStack.PosContFourStack(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma)
         encodernet = Encoder(channel_in=4, ch=32, z=512).to(device)
         print(root_dir, args.expname)
         div_val = 255.0
 
     elif args.model == "DUAL_4STACK_CONT_ATARI":
-        trainset = ContFourStack.ContFourStack(root_dir=root_dir + args.expname, max_len=count_map[args.expname], transform=transform)
+        negset = NegContFourStack.NegContFourStack(root_dir= root_dir + args.expname, transform=transform)
+        posset = PosContFourStack.PosContFourStack(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma)
+        encodernet = Encoder(channel_in=4, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
         teachernet = TEncoder(channel_in=4, ch=16, z=512).to(device)
 
         #load teacher_encoder ckpt        
@@ -155,10 +152,12 @@ def initialize(is_train):
     #dataiter = iter(testloader)
     #test_images, _ = dataiter.next()
 
-    if is_train:
-        trainloader, _ = utils.get_data_STL10(trainset, None, transform, args.sample_batch_size)
+    if is_train and 'CONT' in args.model:
+        negloader, posloader = utils.get_data_STL10(negset, args.train_batch_size, transform, posset, args.sample_batch_size)
+    elif is_train:
+        trainloader, _ = utils.get_data_STL10(trainset, args.train_batch_size, transform)
     else:
-        trainloader, _ = utils.get_data_STL10(trainset, None, transform, 20)
+        trainloader, _ = utils.get_data_STL10(trainset, 20, transform)
         args.load_checkpoint = True
 
     # setup optimizer
@@ -175,7 +174,7 @@ def initialize(is_train):
     if args.load_checkpoint:
         
         if args.model_path == "":
-            model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(args.kl_weight) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt"
+            model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(args.kl_weight) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt"
         else:
             model_path = args.save_dir + args.model_path
         checkpoint = torch.load(model_path, map_location="cpu")
@@ -193,7 +192,10 @@ def initialize(is_train):
         #    print("Starting from scratch")
         start_epoch = 0
 
+    
     if 'DUAL' in args.model:
-        return encodernet, teachernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
+        return encodernet, teachernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
+    elif 'CONT' in args.model:
+        return encodernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
     else:
         return encodernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir

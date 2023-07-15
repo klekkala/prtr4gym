@@ -6,16 +6,18 @@ import os
 from IPython import embed
 
 class BaseDataset(Dataset):
-    def __init__(self, root_dir, max_len=None, transform=None, action=False, reward=False, episode=False, terminal=False, value=False, goal=False):
+    def __init__(self, root_dir, transform=None, action=False, reward=False, episode=False, terminal=False, value=False, goal=False, use_lstm=False):
         self.root_dir = root_dir
         self.transform = transform
-        self.max_len = max_len
-        self.each_len = []
+        self.use_lstm = use_lstm
         self.obs_nps = []
+        self.each_len = []
         self.action_nps = []
         self.value_nps = []
+        self.id_dict = []
         self.reward_nps = []
         self.episode_nps = []
+        self.limit_nps = []
         self.terminal_nps = []
         self.goal_nps = []
         exten = ""
@@ -45,15 +47,27 @@ class BaseDataset(Dataset):
                 if goal:
                     self.goal_nps.append(np.load(root + '/goal' + exten, mmap_mode='r'))
 
-        for i in range(len(self.obs_nps)):
-            if len(self.each_len) == 0:
-                self.each_len.append(self.obs_nps[i].shape[0])
-            else:
-                self.each_len.append(self.obs_nps[i].shape[0] + self.each_len[-1])
+                if self.use_lstm:
+                    ab = np.load(root + '/id_dict' + exten, allow_pickle=True)
+                    self.id_dict.append(ab[()])
 
-        self.max_len = self.each_len[-1]
+
+        for i in range(len(self.obs_nps)):
+            if self.use_lstm:
+                if len(self.each_len) == 0:
+                    self.each_len.append(self.episode_nps[i][-1])
+                else:
+                    self.each_len.append(self.episode_nps[i][-1] + self.each_len[-1])
+            else:                
+                if len(self.each_len) == 0:
+                    self.each_len.append(self.obs_nps[i].shape[0])
+                else:
+                    self.each_len.append(self.obs_nps[i].shape[0] + self.each_len[-1])
+
+
+        #self.max_len = self.each_len[-1]
+        self.max_len = 100
         self.lines = self.max_len
-        #embed()
         self.num_files = len(self.obs_nps)
 
 
