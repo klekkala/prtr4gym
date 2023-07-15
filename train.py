@@ -8,12 +8,12 @@ import torchvision.models as models
 import torchvision.utils as vutils
 from collections import defaultdict
 import imageio as iio
+from IPython import embed
 from torch.hub import load_state_dict_from_url
 from arguments import get_args
 import os
 import random
 import numpy as np
-from pytorch_metric_learning import losses
 import math
 from IPython.display import clear_output
 from PIL import Image
@@ -23,8 +23,10 @@ import initial
 
 args = get_args()
 
-encodernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(True)
-
+if 'DUAL' in args.model:
+    encodernet, teachernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(True)
+else:
+    encodernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(True)
 
 # %% Start Training
 for epoch in trange(start_epoch, args.nepoch, leave=False):
@@ -36,8 +38,17 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
     
     #contrastive case: for i, (img_batch1, img_batch2, pair) in enumerate(tqdm(trainloader, leave=False)):
     #img_batch1, img_batch2 -> [B, T, H, W]
-    for i, (img, target) in enumerate(tqdm(trainloader, leave=False)):
+    for i, data in enumerate(tqdm(trainloader, leave=False)):
 
+        if 'CONT' in args.model:
+            (img, value, episode) = data
+            img = img.reshape(img.shape[0]*img.shape[1], img.shape[2], img.shape[3], img.shape[4])
+            value = torch.flatten(value)
+            episode = torch.flatten(episode)
+            target = torch.cat((torch.unsqueeze(value, 1), torch.unsqueeze(episode, 1)), axis=1)
+            
+        else:
+            (img, target) = data
         image_reshape_val = img.to(device)/div_val
         
         #4STACK: [Bx4xHxW, class]
@@ -50,7 +61,7 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
             #4STACK: [Bx4xHxW, B]
             #4STACK: [Bx4xD, B]
             embeddings = encodernet(image_reshape_val)
-            loss_func = losses.ContrastiveLoss()
+            loss_func = utils.ContrastiveLoss()
             loss = loss_func(embeddings, target)
             #in the case of lstm: we do temporal unfolding and then compute the embeddings
             #Look into this tomorrow (4th July)
@@ -58,9 +69,15 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
             #1CHANLSTM: [BxTxD, BxT]
             #1CHANLSTM: [{B+T}xD, {B+T}]
 
+        elif 'CONT' in args.model and 'DUAL' in args.model:
+            tembeddings = teachernet(image_reshape_val)
+            embeddings = encodernet(image_reshape_val)
+            loss_func = utils.ContrastiveLoss()
+            loss = loss_func(torch.cat((embeddings, tembeddings), axis=0), torch.cat((target, target), axis=0))
+
         elif 'CONT' in args.model:
             embeddings = encodernet(image_reshape_val)
-            loss_func = losses.ContrastiveLoss()
+            loss_func = utils.ContrastiveLoss()
             loss = loss_func(embeddings, target)
 
         else:
@@ -97,6 +114,6 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
         'model_state_dict': encodernet.state_dict(),
         'optimizer_state_dict': optimizer.state_dict()
 
-    }, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(args.kl_weight) + "_" + str(args.batch_size) + ".pt")
+    }, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(args.kl_weight) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt")
 
 
