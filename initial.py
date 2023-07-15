@@ -22,7 +22,7 @@ from PIL import Image
 from tqdm import trange, tqdm
 #from RES_VAE import VAE as VAE
 from models.atari_vae import VAE, VAEBEV
-from models.atari_vae import VAE as BEVLSTM
+from models.LSTM import LSTM as BEVLSTM
 from models.atari_vae import Encoder, TEncoder
 from dataclass import BaseDataset, FourStack, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, PosContFourStack, NegContFourStack
 import utils
@@ -60,7 +60,7 @@ def initialize(is_train):
         model_path = "/lab/kiran/ckpts/pretrained/carla/BEV_VAE_CARLA_RANDOM_BEV_CARLA_E2E_0.01_256_64.pt"
         checkpoint = torch.load(model_path, map_location="cpu")
         encodernet.load_state_dict(checkpoint['model_state_dict'])
-        #encodernet = BEVLSTM(encoder=encodernet).to(device)
+        encodernet = BEVLSTM(latent_size=512, action_size=2, hidden_size=512, batch_size=99, num_layers=1, vae=encodernet).to(device)
         
         div_val = 255.0
 

@@ -51,7 +51,6 @@ class BaseDataset(Dataset):
                     ab = np.load(root + '/id_dict' + exten, allow_pickle=True)
                     self.id_dict.append(ab[()])
 
-
         for i in range(len(self.obs_nps)):
             if self.use_lstm:
                 if len(self.each_len) == 0:
@@ -63,7 +62,6 @@ class BaseDataset(Dataset):
                     self.each_len.append(self.obs_nps[i].shape[0])
                 else:
                     self.each_len.append(self.obs_nps[i].shape[0] + self.each_len[-1])
-
 
         #self.max_len = self.each_len[-1]
         self.max_len = 100

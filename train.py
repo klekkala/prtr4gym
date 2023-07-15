@@ -7,6 +7,7 @@ import torchvision.transforms as T
 import torch.nn.functional as F
 import torchvision.models as models
 import torchvision.utils as vutils
+from torch.autograd import Variable
 from collections import defaultdict
 from pytorch_metric_learning import losses
 import imageio as iio
@@ -40,8 +41,6 @@ else:
 if 'CONT' in args.model:
     #loss_func = InfoNCE(temperature=args.temperature, negative_mode='unpaired') # negative_mode='unpaired' is the default value
     loss_func = losses.ContrastiveLoss()
-elif 'LSTM' in args.model:
-    loss_func = nn.MSELoss()
 else:
     loss_func = utils.vae_loss
 
@@ -95,18 +94,19 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
                 tquery = teachernet(query_imgs)
                 tpositives = teachernet(pos_imgs)
                 tnegatives = teachernet(neg_reshape_val)
-                loss = loss_func(torch.cat([query, positives, negatives, tquery, tpositives, tnegatives], axis=0), torch.cat([posclasses, posclasses, negclasses, posclasses, posclasses, negclasses], axis=0))
+                loss = loss_func(torch.cat([query, positives, negatives, tquery, tpositives], axis=0), torch.cat([posclasses, posclasses, negclasses, posclasses, posclasses], axis=0))
             else:
                 loss = loss_func(torch.cat([query, positives, negatives], axis=0), torch.cat([posclasses, posclasses, negclasses], axis=0))
 
         elif 'LSTM' in args.model:
             #CHEN
-            (img, target) = negdata
-            embed()
+            (img, target, action) = negdata
             image_reshape_val = img.to(device)/div_val
             targ = target.to(device)/div_val
-
-            recon_data, mu, logvar = encodernet(image_reshape_val)
+            num_layers, batch_size, hidden_size=1, 99, 512
+            h_0 = Variable(torch.randn(num_layers, batch_size, hidden_size)).to(device)
+            c_0 = Variable(torch.randn(num_layers, batch_size, hidden_size)).to(device)
+            recon_data, mu, logvar = encodernet(action.to(device), image_reshape_val, h_0, c_0)
             loss = loss_func(recon_data, targ, mu, logvar, args.kl_weight)
 
 

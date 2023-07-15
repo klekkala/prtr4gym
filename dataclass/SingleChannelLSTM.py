@@ -8,8 +8,9 @@ import bisect
 from IPython import embed
 
 class SingleChannelLSTM(BaseDataset):
-    def __init__(self, root_dir, transform=None):
+    def __init__(self, root_dir, transform=None, max_seq_length = 100):
         super().__init__(root_dir, transform, action=True, value=False, reward=True, episode=True, terminal=True, goal=False, use_lstm=True)
+        self.max_seq_length = max_seq_length
 
     def __getitem__(self, item):
         file_ind = bisect.bisect_right(self.each_len, item)
@@ -21,12 +22,19 @@ class SingleChannelLSTM(BaseDataset):
         #print(file_ind, im_ind, self.max_len, self.each_len)
         #embed()
         #trajimg = self.obs_nps[file_ind][im_ind: self.limit_nps[file_ind][im_ind] - 1].astype(np.float32)
-        trajimg = self.obs_nps[file_ind][im_ind: im_ind+5].astype(np.float32)
+        trajimg = self.obs_nps[file_ind][im_ind: im_ind+5]
+        trajimg = trajimg[:, None, :, :]  # add channel dimension
 
-        target = trajimg
+        action = self.action_nps[file_ind][im_ind: im_ind+5]
 
+        zs = np.zeros((self.max_seq_length - trajimg.shape[0],) + trajimg.shape[1:])
+        trajimg = np.concatenate((trajimg, zs)) # padding
+
+        target = trajimg[1:]  # offset
+        trajimg = trajimg[:-1] # truncate
         #if self.transform is not None:
         #    img = self.transform(img)
         #    target = self.transform(target)
+        action = np.concatenate((action, np.zeros((trajimg.shape[0]-action.shape[0],) + (action.shape[-1],)))) # padding
 
-        return trajimg, target
+        return trajimg.astype(np.float32), target.astype(np.float32), action
