@@ -59,19 +59,13 @@ class VAEBEV(nn.Module):
         return z, mu, logvar
         
     def representation(self, x):
-        i = torch.reshape(x, (-1,) + x.shape[-3:])
-        z = self.bottleneck(self.encoder(i))[0]
-        return torch.reshape(z, x.shape[:2] + (-1,))
+        return self.bottleneck(self.encoder(x))[0]
 
     def forward(self, x):
-        i = torch.reshape(x, (-1,) + x.shape[-3:])
-        h = self.encoder(i)
+        h = self.encoder(x)
         z, mu, logvar = self.bottleneck(h)
         z = self.fc3(z)
-        o = self.decoder(z)
-        o = torch.reshape(o, x.shape)
-        return o, mu, logvar
-
+        return self.decoder(z), mu, logvar
         
 class VAE(nn.Module):
     def __init__(self, channel_in=3, ch=16, z=64, h_dim=512):

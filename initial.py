@@ -60,7 +60,7 @@ def initialize(is_train):
         model_path = "/lab/kiran/ckpts/pretrained/carla/BEV_VAE_CARLA_RANDOM_BEV_CARLA_E2E_0.01_256_64.pt"
         checkpoint = torch.load(model_path, map_location="cpu")
         encodernet.load_state_dict(checkpoint['model_state_dict'])
-        encodernet = BEVLSTM(latent_size=512, action_size=2, hidden_size=512, batch_size=99, num_layers=1, vae=encodernet).to(device)
+        encodernet = BEVLSTM(latent_size=32, action_size=2, hidden_size=32, batch_size=args.train_batch_size, num_layers=1, vae=encodernet).to(device)
         
         div_val = 255.0
 
@@ -103,10 +103,10 @@ def initialize(is_train):
     elif args.model == "DUAL_4STACK_CONT_ATARI":
         negset = NegContFourStack.NegContFourStack(root_dir= root_dir + args.expname, transform=transform)
         posset = PosContFourStack.PosContFourStack(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma)
-        encodernet = Encoder(channel_in=4, ch=32, z=512).to(device)
+        encodernet = TEncoder(channel_in=4, ch=16, z=512).to(device)
         print(root_dir, args.expname)
         div_val = 255.0
-        teachernet = TEncoder(channel_in=4, ch=16, z=512).to(device)
+        teachernet = Encoder(channel_in=4, ch=16, z=512).to(device)
 
         #load teacher_encoder ckpt        
         ModelCatalog.register_custom_model("model", SingleAtariModel)

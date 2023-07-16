@@ -41,6 +41,8 @@ else:
 if 'CONT' in args.model:
     #loss_func = InfoNCE(temperature=args.temperature, negative_mode='unpaired') # negative_mode='unpaired' is the default value
     loss_func = losses.ContrastiveLoss()
+elif 'LSTM' in args.model:
+    loss_func = nn.MSELoss()
 else:
     loss_func = utils.vae_loss
 
@@ -103,12 +105,13 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
             (img, target, action) = negdata
             image_reshape_val = img.to(device)/div_val
             targ = target.to(device)/div_val
-            num_layers, batch_size, hidden_size=1, 99, 512
-            h_0 = Variable(torch.randn(num_layers, batch_size, hidden_size)).to(device)
-            c_0 = Variable(torch.randn(num_layers, batch_size, hidden_size)).to(device)
-            recon_data, mu, logvar = encodernet(action.to(device), image_reshape_val, h_0, c_0)
-            loss = loss_func(recon_data, targ, mu, logvar, args.kl_weight)
+            action = action.to(device)
 
+            encodernet.init_hs()
+            z_gt, _, _ = encodernet.encode(targ)
+            z_prev, _, _ = encodernet.encode(image_reshape_val)
+            z_pred = encodernet(action, z_prev)
+            loss = loss_func(z_pred, z_gt)
 
         else:
             (img, target) = negdata

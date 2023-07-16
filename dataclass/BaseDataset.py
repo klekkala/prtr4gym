@@ -43,6 +43,7 @@ class BaseDataset(Dataset):
                 
                 if episode:
                     self.episode_nps.append(np.load(root + '/episode' + exten, mmap_mode='r'))
+                    self.limit_nps.append(np.load(root + '/limit' + exten, mmap_mode='r'))
 
                 if goal:
                     self.goal_nps.append(np.load(root + '/goal' + exten, mmap_mode='r'))

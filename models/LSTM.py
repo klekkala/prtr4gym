@@ -12,18 +12,24 @@ class LSTM(nn.Module):
         super().__init__()
         self.vae = vae
         self.lstm = nn.LSTM(latent_size + action_size, hidden_size, batch_first=True)
+        self.h_size = (num_layers, batch_size, hidden_size)
+        self.init_hs()
 
-    def forward(self, action, image, h_0, c_0):
+    def init_hs(self):
+        self.h_0 = Variable(torch.randn(self.h_size)).to(device)
+        self.c_0 = Variable(torch.randn(self.h_size)).to(device)
+
+    def encode(self, image):
         x = torch.reshape(image, (-1,) + image.shape[-3:])
-        hidden = self.vae.encoder(x)
-        hidden = torch.reshape(hidden, image.shape[:2] + (-1,))
-        in_al = torch.cat([torch.Tensor(action), hidden], dim=-1)
-        outs, _ = self.lstm(in_al.float(), (h_0, c_0))
-        z, mu, logvar = self.vae.bottleneck(outs)
-        z = torch.reshape(z, (-1,) + (z.shape[-1],))
-        recon = self.vae.decoder(self.vae.fc3(z))
-        recon = torch.reshape(recon, image.shape)           
-        return recon, mu, logvar
+        _, mu, logvar = self.vae(x)
+        z = self.vae.reparameterize(mu, logvar)
+        z = torch.reshape(z, image.shape[:2] + (-1,))
+        return z, mu, logvar
+
+    def forward(self, action, latent):
+        in_al = torch.cat([torch.Tensor(action), latent], dim=-1)
+        outs, _ = self.lstm(in_al.float(), (self.h_0, self.c_0))
+        return outs
 '''
 class LSTM(nn.Module):
     def __init__(self, hidden_layers=64):
