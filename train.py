@@ -73,8 +73,8 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
                 #value = torch.flatten(value)
                 #episode = torch.flatten(episode)
                 #target = torch.cat((torch.unsqueeze(value, 1), torch.unsqueeze(episode, 1)), axis=1)
-                neg_reshape_val = negdata.to(device)/div_val
-                pos_reshape_val = posdata.to(device)/div_val
+            neg_reshape_val = negdata.to(device)/div_val
+            pos_reshape_val = posdata.to(device)/div_val
             
             #batch_size, num_negative, embedding_size = 32, 48, 128
             #sample_batch_size -> number of positives/queries
@@ -93,6 +93,8 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
             negclasses = torch.arange(start=query.shape[0], end=query.shape[0]+negatives.shape[0])
             
             if 'DUAL' in args.model:
+                #for now we are testing with the same game
+                #so the adapter learns an identity function
                 tquery = teachernet(query_imgs)
                 tpositives = teachernet(pos_imgs)
                 tnegatives = teachernet(neg_reshape_val)

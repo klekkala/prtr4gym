@@ -9,8 +9,8 @@ from IPython import embed
 import torch
 
 class PosContFourStack(BaseDataset):
-    def __init__(self, root_dir, max_len, sample_next, transform=None):
-        super().__init__(root_dir, max_len, transform, action=True, value=True, reward=True, episode=True, terminal=True, goal=False)
+    def __init__(self, root_dir, sample_next, transform=None):
+        super().__init__(root_dir, transform, action=True, value=True, reward=True, episode=True, terminal=True, goal=False)
         #self.value_thresh = value_thresh
         print(root_dir)
         self.sample_next = sample_next

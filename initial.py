@@ -106,7 +106,7 @@ def initialize(is_train):
         encodernet = TEncoder(channel_in=4, ch=16, z=512).to(device)
         print(root_dir, args.expname)
         div_val = 255.0
-        teachernet = Encoder(channel_in=4, ch=16, z=512).to(device)
+        teachernet = TEncoder(channel_in=4, ch=16, z=512).to(device)
 
         #load teacher_encoder ckpt        
         ModelCatalog.register_custom_model("model", SingleAtariModel)
@@ -127,8 +127,16 @@ def initialize(is_train):
         teachernet.load_state_dict(model_state_dict)
 
         #initialize student model
-        encodernet = TEncoder(channel_in=4, ch=16, z=512).to(device)
+        encodernet = Encoder(channel_in=4, ch=16, z=512).to(device)
+        model_state_dict['conv_mu.weight'] = torch.from_numpy(np.random.randn(512, 512, 1, 1))
+        model_state_dict['conv_mu.bias'] = torch.from_numpy(np.random.randn(512))        
+        encodernet.load_state_dict(model_state_dict)
         print(root_dir, args.expname)
+        encodernet.encoder.eval()
+        for name, param in encodernet.named_parameters():
+            if 'encoder' in name:
+                param.requires_grad = False
+        
         div_val = 255.0
 
     elif args.model == "CONTLSTM_ATARI":

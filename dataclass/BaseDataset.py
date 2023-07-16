@@ -64,8 +64,7 @@ class BaseDataset(Dataset):
                 else:
                     self.each_len.append(self.obs_nps[i].shape[0] + self.each_len[-1])
 
-        #self.max_len = self.each_len[-1]
-        self.max_len = 100
+        self.max_len = self.each_len[-1]
         self.lines = self.max_len
         self.num_files = len(self.obs_nps)
 
