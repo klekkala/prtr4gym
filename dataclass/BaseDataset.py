@@ -28,7 +28,8 @@ class BaseDataset(Dataset):
             if 'observation' + exten in files:
                 print(root)
                 self.obs_nps.append(np.load(root + '/observation' + exten, mmap_mode='r'))
-
+                #self.obs_nps.append(np.load(root + '/observation' + exten, mmap_mode='r')[:,:,:,0])
+                print(self.obs_nps[-1].shape)
                 if action:
                     self.action_nps.append(np.load(root + '/action' + exten, mmap_mode='r'))
 
@@ -65,6 +66,7 @@ class BaseDataset(Dataset):
                     self.each_len.append(self.obs_nps[i].shape[0] + self.each_len[-1])
 
         self.max_len = self.each_len[-1]
+        #self.lines = 100000
         self.lines = self.max_len
         self.num_files = len(self.obs_nps)
 

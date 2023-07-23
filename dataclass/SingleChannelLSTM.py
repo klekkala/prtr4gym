@@ -22,7 +22,7 @@ class SingleChannelLSTM(BaseDataset):
         #print(file_ind, im_ind, self.max_len, self.each_len)
         #embed()
         last_img = self.limit_nps[file_ind][im_ind]
-        
+
         #this is TxHxW
         traj = self.obs_nps[file_ind][im_ind:last_img].astype(np.float32)
         #this is TX2
@@ -34,7 +34,7 @@ class SingleChannelLSTM(BaseDataset):
         trajimg = np.concatenate((trajimg, zs)) # padding
 
         target = trajimg[1:]  # offset
-        target = np.concatenate((np.zeros((1,)+target.shape[1:]), target)) # padding
+        target = np.concatenate((target, np.zeros((1,)+target.shape[1:]))) # padding
         #if self.transform is not None:
         #    img = self.transform(img)
         #    target = self.transform(target)

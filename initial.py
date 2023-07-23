@@ -20,11 +20,11 @@ from IPython.display import clear_output
 from ray.rllib.models import ModelCatalog
 from PIL import Image
 from tqdm import trange, tqdm
-#from RES_VAE import VAE as VAE
+from models.RES_VAE import Encoder as ResEncoder
 from models.atari_vae import VAE, VAEBEV
 from models.LSTM import LSTM as BEVLSTM
-from models.atari_vae import Encoder, TEncoder
-from dataclass import BaseDataset, FourStack, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, PosContFourStack, NegContFourStack
+from models.atari_vae import Encoder
+from dataclass import BaseDataset, CarlaBEV, FourStack, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, PosContFourStack, NegContFourStack
 import utils
 from arguments import get_args
 args = get_args()
@@ -56,12 +56,14 @@ def initialize(is_train):
     #CHEN
     elif args.model == "BEV_LSTM_CARLA":
         trainset = SingleChannelLSTM.SingleChannelLSTM(root_dir= root_dir + args.expname, transform=transform)
-        encodernet = VAEBEV(channel_in=1, ch=16, z=32).to(device)
-        model_path = "/lab/kiran/ckpts/pretrained/carla/BEV_VAE_CARLA_RANDOM_BEV_CARLA_E2E_0.01_256_64.pt"
-        checkpoint = torch.load(model_path, map_location="cpu")
-        encodernet.load_state_dict(checkpoint['model_state_dict'])
-        encodernet = BEVLSTM(latent_size=32, action_size=2, hidden_size=32, batch_size=args.train_batch_size, num_layers=1, vae=encodernet).to(device)
-        
+        vae = VAEBEV(channel_in=1, ch=16, z=32).to(device)
+        vae.eval()
+        for param in vae.parameters():
+            param.requires_grad = False
+        vae_model_path = "/lab/kiran/ckpts/pretrained/carla/BEV_VAE_CARLA_RANDOM_BEV_CARLA_E2E_0.01_256_64.pt"
+        vae_ckpt = torch.load(vae_model_path, map_location="cpu")
+        vae.load_state_dict(vae_ckpt['model_state_dict'])
+        encodernet = BEVLSTM(latent_size=32, action_size=2, hidden_size=32, batch_size=args.train_batch_size, num_layers=1, vae=vae).to(device)        
         div_val = 255.0
 
 
@@ -96,7 +98,11 @@ def initialize(is_train):
     elif args.model == "4STACK_CONT_ATARI":
         negset = NegContFourStack.NegContFourStack(root_dir= root_dir + args.expname, transform=transform)
         posset = PosContFourStack.PosContFourStack(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma)
-        encodernet = Encoder(channel_in=4, ch=32, z=512).to(device)
+        if args.arch == 'resnet':
+            print("using resnet")
+            encodernet = ResEncoder(channel_in=4, ch=32, z=512).to(device)
+        else:
+            encodernet = Encoder(channel_in=4, ch=32, z=512).to(device)
         print(root_dir, args.expname)
         div_val = 255.0
 
@@ -162,12 +168,15 @@ def initialize(is_train):
 
     if is_train and 'CONT' in args.model:
         negloader, posloader = utils.get_data_STL10(negset, args.train_batch_size, transform, posset, args.sample_batch_size)
+        print("contlksjflkjsdfj")
     elif is_train:
         trainloader, _ = utils.get_data_STL10(trainset, args.train_batch_size, transform)
+    elif is_train == False and 'LSTM' in args.model:
+        trainloader, _ = utils.get_data_STL10(trainset, 2, transform)
+        args.load_checkpoint = True
     else:
         trainloader, _ = utils.get_data_STL10(trainset, 20, transform)
         args.load_checkpoint = True
-
     # setup optimizer
     optimizer = optim.Adam(encodernet.parameters(), lr=args.lr, betas=(0.5, 0.999))
     # Loss function
@@ -185,6 +194,7 @@ def initialize(is_train):
             model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(args.kl_weight) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt"
         else:
             model_path = args.save_dir + args.model_path
+        print(model_path)
         checkpoint = torch.load(model_path, map_location="cpu")
         print("Checkpoint loaded")
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -204,6 +214,7 @@ def initialize(is_train):
     if 'DUAL' in args.model:
         return encodernet, teachernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
     elif 'CONT' in args.model:
+        print("contlksjfjak")
         return encodernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
     else:
         return encodernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir

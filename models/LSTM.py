@@ -26,7 +26,13 @@ class LSTM(nn.Module):
         z = torch.reshape(z, image.shape[:2] + (-1,))
         return z, mu, logvar
 
+    def decode(self, z):
+        z_f = torch.reshape(z,  (-1,) + (z.shape[-1],))
+        img = self.vae.recon(z_f)
+        return torch.reshape(img, z.shape[:2] + img.shape[-3:])
+
     def forward(self, action, latent):
+        print(latent.shape)
         in_al = torch.cat([torch.Tensor(action), latent], dim=-1)
         outs, _ = self.lstm(in_al.float(), (self.h_0, self.c_0))
         return outs

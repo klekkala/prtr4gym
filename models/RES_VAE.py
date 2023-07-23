@@ -68,15 +68,53 @@ class Encoder(nn.Module):
     When in .eval() the Encoder will not sample from the distribution and will instead output mu as the encoding vector
     and log_var will be None
     """
-    def __init__(self, channels, ch=64, z=512):
+    def __init__(self, channel_in=4, ch=64, z=512):
+        super(Encoder, self).__init__()
+        self.conv1 = ResDown(channel_in, ch)  # 64
+        self.conv2 = ResDown(ch, 2*ch)  # 32
+        self.conv3 = ResDown(2*ch, 4*ch)  # 16
+        self.conv4 = ResDown(4*ch, 8*ch)  # 8
+        self.conv5 = ResDown(8*ch, 8*ch)  # 4
+
+        self.conv_mu = nn.Conv2d(8*ch, z, 2, 2)
+
+    def sample(self, mu, log_var):
+        std = torch.exp(0.5*log_var)
+        eps = torch.randn_like(std)
+        return mu + eps*std
+        
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.conv5(x)
+        
+        mu = torch.flatten(x, start_dim=1)
+        return mu
+
+"""
+class Encoder(nn.Module):
+
+    #Encoder block
+    #Built for a 3x64x64 image and will result in a latent vector of size z x 1 x 1
+    #As the network is fully convolutional it will work for images LARGER than 64
+    #For images sized 64 * n where n is a power of 2, (1, 2, 4, 8 etc) the latent feature map size will be z x n x n
+
+    #When in .eval() the Encoder will not sample from the distribution and will instead output mu as the encoding vector
+    #and log_var will be None
+
+    def __init__(self, channel_in=4, ch=64, z=512):
         super(Encoder, self).__init__()
         self.conv1 = ResDown(channels, ch)  # 64
         self.conv2 = ResDown(ch, 2*ch)  # 32
         self.conv3 = ResDown(2*ch, 4*ch)  # 16
         self.conv4 = ResDown(4*ch, 8*ch)  # 8
         self.conv5 = ResDown(8*ch, 8*ch)  # 4
-        self.conv_mu = nn.Conv2d(8*ch, z, 2, 2)  # 2
-        self.conv_log_var = nn.Conv2d(8*ch, z, 2, 2)  # 2
+        #self.conv_mu = nn.Conv2d(8*ch, z, 2, 2)  # 2
+        #self.conv_log_var = nn.Conv2d(8*ch, z, 2, 2)  # 2
+
+        self.conv_mu = nn.Conv2d(8*ch, z, 1, 1)
 
     def sample(self, mu, log_var):
         std = torch.exp(0.5*log_var)
@@ -90,16 +128,19 @@ class Encoder(nn.Module):
         x = self.conv4(x)
         x = self.conv5(x)
 
-        if self.training:
-            mu = self.conv_mu(x)
-            log_var = self.conv_log_var(x)
-            x = self.sample(mu, log_var)
-        else:
-            mu = self.conv_mu(x)
-            x = mu
-            log_var = None
+        #if self.training:
+        #    mu = self.conv_mu(x)
+        #    log_var = self.conv_log_var(x)
+        #    x = self.sample(mu, log_var)
+        #else:
+        #    mu = self.conv_mu(x)
+        #    x = mu
+        #    log_var = None
+        #return x, mu, log_var
 
-        return x, mu, log_var
+        return self.conv_mu(x)
+"""
+
 
 
 class Decoder(nn.Module):

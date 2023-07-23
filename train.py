@@ -82,7 +82,6 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
             query_imgs, pos_imgs = torch.split(pos_reshape_val, 1, dim=1)
             query_imgs = torch.squeeze(query_imgs)
             pos_imgs = torch.squeeze(pos_imgs)
-            
             query = encodernet(query_imgs)
             positives = encodernet(pos_imgs)
             negatives = encodernet(neg_reshape_val)

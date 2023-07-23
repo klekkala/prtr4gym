@@ -61,11 +61,14 @@ class VAEBEV(nn.Module):
     def representation(self, x):
         return self.bottleneck(self.encoder(x))[0]
 
+    def recon(self, z):
+        z = self.fc3(z)
+        return self.decoder(z)
+
     def forward(self, x):
         h = self.encoder(x)
         z, mu, logvar = self.bottleneck(h)
-        z = self.fc3(z)
-        return self.decoder(z), mu, logvar
+        return self.recon(z), mu, logvar
         
 class VAE(nn.Module):
     def __init__(self, channel_in=3, ch=16, z=64, h_dim=512):
@@ -114,9 +117,10 @@ class VAE(nn.Module):
 
 
 
-class TEncoder(nn.Module):
+
+class Encoder(nn.Module):
     def __init__(self, channel_in=3, ch=16, z=64, h_dim=512):
-        super(TEncoder, self).__init__()
+        super(Encoder, self).__init__()
         self.encoder = nn.Sequential(
             nn.ZeroPad2d((2, 2, 2, 2)),
             nn.Conv2d(channel_in, ch, kernel_size=(8, 8), stride=(4, 4)),
@@ -126,24 +130,14 @@ class TEncoder(nn.Module):
             nn.ReLU(),
             nn.Conv2d(ch*2, ch*32, kernel_size=(11, 11), stride=(1, 1)),
             nn.ReLU(),
-
         )
 
-    def forward(self, x):
-        h = self.encoder(x)
-        mu = torch.flatten(h, start_dim=1)
-        return mu
-
-
-class Encoder(TEncoder):
-    def __init__(self, channel_in=3, ch=16, z=64, h_dim=512):
-        super(Encoder, self).__init__(channel_in=channel_in, ch=ch, z=z, h_dim=h_dim)
         self.conv_mu = nn.Conv2d(ch*32, z, 1, 1)
 
 
         
     def forward(self, x):
         h = self.encoder(x)
-        mu = self.conv_mu(h)
-        mu = torch.flatten(mu, start_dim=1)
+        #mu = self.conv_mu(h)
+        mu = torch.flatten(h, start_dim=1)
         return mu

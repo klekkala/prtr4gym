@@ -10,7 +10,7 @@ def get_args():
     parser.add_argument(
         "--arch",
         choices=["standard", "resnet"],
-        default="e2e",
+        default="standard",
     )
     parser.add_argument(
         "--model",
@@ -53,7 +53,7 @@ def get_args():
         "--train_batch_size", type=int, default=512, help="pretrained results"
     )
     parser.add_argument(
-        "--kl_weight", type=float, default=0.04, help="pretrained results"
+        "--kl_weight", type=float, default=0.01, help="pretrained results"
     )
     parser.add_argument(
         "--lr", type=float, default=1e-6, help="pretrained results"
