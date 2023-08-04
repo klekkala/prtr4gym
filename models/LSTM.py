@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
+from IPython import embed
 
 GPU_indx = 0
 device = torch.device(GPU_indx if torch.cuda.is_available() else "cpu")
@@ -10,7 +11,7 @@ class StateLSTM(nn.Module):
     def __init__(self, latent_size, hidden_size, batch_size, num_layers, encoder):
         super().__init__()
         self.encoder = encoder
-        self.lstm = nn.LSTM(latent_size, hidden_size, batch_first=True)
+        self.lstm = nn.LSTM(latent_size, hidden_size, batch_first=True).cuda()
         self.h_size = (num_layers, batch_size, hidden_size)
         self.init_hs()
 
@@ -18,10 +19,13 @@ class StateLSTM(nn.Module):
         self.h_0 = Variable(torch.randn(self.h_size)).to(device)
         self.c_0 = Variable(torch.randn(self.h_size)).to(device)
 
-    def forward(self, img):
-        in_al = self.encoder(img)
-        outs, _ = self.lstm(in_al.float(), (self.h_0, self.c_0))
-        return outs
+    def forward(self, image):
+        x = torch.reshape(image, (-1,) + image.shape[-3:]).float()
+        z = self.encoder(x).float()
+        z = torch.reshape(z, image.shape[:2] + (-1,))
+        out, last = self.lstm(z.float(), (self.h_0, self.c_0))
+        return torch.squeeze(last[0])
+
 
 
 class StateActionLSTM(StateLSTM):
@@ -49,7 +53,6 @@ class StateActionLSTM(StateLSTM):
         in_al = torch.cat([torch.Tensor(action), latent], dim=-1)
         outs, _ = self.lstm(in_al.float(), (self.h_0, self.c_0))
         return outs
-
 
 
 

@@ -82,7 +82,6 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
         positerator = iter(posloader)
         
     for i, negdata in enumerate(tqdm(negloader, leave=False)):
-        
         if 'CONT' in args.model:
             try:
                 posdata = next(positerator)
@@ -126,8 +125,8 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
                 if 'LSTM' in args.model:
                     encodernet.init_hs()
                     neg_reshape_val = torch.unsqueeze(neg_reshape_val, axis=2)
-                    query_imgs = torch.reshape(query_imgs, (args.train_batch_size, 3000, 1, 84, 84))
-                    pos_imgs = torch.reshape(pos_imgs, (args.train_batch_size, 3000, 1, 84, 84))
+                    query_imgs = torch.reshape(query_imgs, (args.train_batch_size, args.maxseq, 1, 84, 84))
+                    pos_imgs = torch.reshape(pos_imgs, (args.train_batch_size, args.maxseq, 1, 84, 84))
                 else:
                     query_imgs = torch.squeeze(query_imgs)
                     pos_imgs = torch.squeeze(pos_imgs)
@@ -135,11 +134,10 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
                 query = encodernet(query_imgs)
                 positives = encodernet(pos_imgs)
                 negatives = encodernet(neg_reshape_val)
-
+                
                 #allocat classes for queries, positives and negatives
                 posclasses = torch.arange(start=0, end=query.shape[0])
                 negclasses = torch.arange(start=query.shape[0], end=query.shape[0]+negatives.shape[0])
-                
                 loss = loss_func(torch.cat([query, positives, negatives], axis=0), torch.cat([posclasses, posclasses, negclasses], axis=0))
 
         elif 'LSTM' in args.model:

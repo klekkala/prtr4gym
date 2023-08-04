@@ -111,8 +111,8 @@ def initialize(is_train):
         div_val = 255.0
 
     elif args.model == "1CHANLSTM_CONT_ATARI":
-        negset = NegContLSTM.NegContLSTM(root_dir= root_dir + args.expname, transform=transform, max_seq_length=3000)
-        posset = PosContLSTM.PosContLSTM(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma, max_seq_length=3000)
+        negset = NegContLSTM.NegContLSTM(root_dir= root_dir + args.expname, transform=transform, max_seq_length=args.maxseq)
+        posset = PosContLSTM.PosContLSTM(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma, max_seq_length=args.maxseq)
         if args.arch == 'resnet':
             print("using resnet")
             #encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)

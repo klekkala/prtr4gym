@@ -71,6 +71,7 @@ class BaseDataset(Dataset):
         if max_len != None:
             print("setting max_len")
             self.lines = max_len
+        print("blah blah")
         self.lines = self.max_len
         self.num_files = len(self.obs_nps)
     

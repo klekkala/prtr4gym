@@ -21,5 +21,5 @@ checkpoint = torch.load("Models/" + "STL10_ATTARI_64.pt" , map_location="cpu")
 print("Checkpoint loaded")
 vae_net.load_state_dict(checkpoint['model_state_dict'])
 
-_ , mu, sigma = vae_net(obs.to(device)))
+_ , mu, sigma = vae_net(obs.to(device))
 torch.distributions.Normal(loc=mu, scale=sigma)
