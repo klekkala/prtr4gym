@@ -6,7 +6,7 @@ import os
 from IPython import embed
 
 class BaseDataset(Dataset):
-    def __init__(self, root_dir, transform=None, action=False, reward=False, episode=False, terminal=False, value=False, goal=False, use_lstm=False):
+    def __init__(self, root_dir, transform=None, max_len=None, action=False, reward=False, episode=False, terminal=False, value=False, goal=False, use_lstm=False):
         self.root_dir = root_dir
         self.transform = transform
         self.use_lstm = use_lstm
@@ -20,16 +20,16 @@ class BaseDataset(Dataset):
         self.limit_nps = []
         self.terminal_nps = []
         self.goal_nps = []
+        
         exten = ""
-        if 'carla' in self.root_dir:
+        if 'carla' in self.root_dir or 'trained' in self.root_dir:
             exten = '.npy'
         for root, subdirs, files in os.walk(self.root_dir):
 
             if 'observation' + exten in files:
                 print(root)
                 self.obs_nps.append(np.load(root + '/observation' + exten, mmap_mode='r'))
-                #self.obs_nps.append(np.load(root + '/observation' + exten, mmap_mode='r')[:,:,:,0])
-                print(self.obs_nps[-1].shape)
+                #self.obs_nps.append(np.load(root + '/observation' + exten, mmap_mode='r')[:10000,:,:,0])
                 if action:
                     self.action_nps.append(np.load(root + '/action' + exten, mmap_mode='r'))
 
@@ -54,7 +54,8 @@ class BaseDataset(Dataset):
                     self.id_dict.append(ab[()])
 
         for i in range(len(self.obs_nps)):
-            if self.use_lstm:
+            #only for carla
+            if self.use_lstm and 'carla' in self.root_dir:
                 if len(self.each_len) == 0:
                     self.each_len.append(self.episode_nps[i][-1])
                 else:
@@ -66,10 +67,12 @@ class BaseDataset(Dataset):
                     self.each_len.append(self.obs_nps[i].shape[0] + self.each_len[-1])
 
         self.max_len = self.each_len[-1]
-        #self.lines = 100000
+
+        if max_len != None:
+            print("setting max_len")
+            self.lines = max_len
         self.lines = self.max_len
         self.num_files = len(self.obs_nps)
-
-
+    
     def __len__(self):
         return self.lines-1

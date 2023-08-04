@@ -61,11 +61,12 @@ class TEncoder(nn.Module):
         x = self.conv3(x)
         x = self.conv4(x)
         x = self.conv5(x)
-        x = self.conv_mu(x)
-        mu = torch.flatten(x, start_dim=1)
+        #if self.train set conv_mu
+        mu = self.conv_mu(x)
+        #mu = torch.flatten(x, start_dim=1)
         return mu
 
-
+        
 
 class ResUp(nn.Module):
     """

@@ -6,18 +6,32 @@ from torch.autograd import Variable
 GPU_indx = 0
 device = torch.device(GPU_indx if torch.cuda.is_available() else "cpu")
 
-
-class LSTM(nn.Module):
-    def __init__(self, latent_size, action_size, hidden_size, batch_size, num_layers, vae=None):
+class StateLSTM(nn.Module):
+    def __init__(self, latent_size, hidden_size, batch_size, num_layers, encoder):
         super().__init__()
-        self.vae = vae
-        self.lstm = nn.LSTM(latent_size + action_size, hidden_size, batch_first=True)
+        self.encoder = encoder
+        self.lstm = nn.LSTM(latent_size, hidden_size, batch_first=True)
         self.h_size = (num_layers, batch_size, hidden_size)
         self.init_hs()
 
     def init_hs(self):
         self.h_0 = Variable(torch.randn(self.h_size)).to(device)
         self.c_0 = Variable(torch.randn(self.h_size)).to(device)
+
+    def forward(self, img):
+        in_al = self.encoder(img)
+        outs, _ = self.lstm(in_al.float(), (self.h_0, self.c_0))
+        return outs
+
+
+class StateActionLSTM(StateLSTM):
+    def __init__(self, latent_size, action_size, hidden_size, batch_size, num_layers, encoder=None, vae=None):
+        super().__init__(latent_size=latent_size, hidden_size=hidden_size, batch_size=batch_size, num_layers=num_layers, encoder=encoder)
+        self.vae = vae
+        self.vae.eval()
+        for param in self.vae.parameters():
+            param.requires_grad = False
+        self.lstm = nn.LSTM(latent_size + action_size, hidden_size, batch_first=True)
 
     def encode(self, image):
         x = torch.reshape(image, (-1,) + image.shape[-3:])
@@ -32,10 +46,15 @@ class LSTM(nn.Module):
         return torch.reshape(img, z.shape[:2] + img.shape[-3:])
 
     def forward(self, action, latent):
-        print(latent.shape)
         in_al = torch.cat([torch.Tensor(action), latent], dim=-1)
         outs, _ = self.lstm(in_al.float(), (self.h_0, self.c_0))
         return outs
+
+
+
+
+
+
 '''
 class LSTM(nn.Module):
     def __init__(self, hidden_layers=64):

@@ -14,7 +14,7 @@ def get_args():
     )
     parser.add_argument(
         "--model",
-        choices=["BEV_VAE_CARLA", "BEV_LSTM_CARLA", "4STACK_VAE_ATARI", "3CHANRGB_VAE_ATARI101", "1CHAN_VAE_ATARI101", "3CHAN_VAE_ATARI", "1CHAN_VAE_ATARI", "1CHAN_CONT_ATARI", "4STACK_CONT_ATARI", "DUAL_4STACK_CONT_ATARI"],
+        choices=["BEV_VAE_CARLA", "BEV_LSTM_CARLA", "4STACK_VAE_ATARI", "3CHANRGB_VAE_ATARI101", "1CHAN_VAE_ATARI101", "3CHAN_VAE_ATARI", "1CHAN_VAE_ATARI", "1CHANLSTM_CONT_ATARI", "4STACK_CONT_ATARI", "DUAL_4STACK_CONT_ATARI"],
         default="e2e",
     )
     parser.add_argument(
@@ -29,19 +29,28 @@ def get_args():
         "--save_dir", type=str, default="/lab/kiran/ckpts/pretrained/atari/", help="pretrained results"
     )
     parser.add_argument(
+        "--tmodel_path", type=str, default="", help="pretrained results"
+    ) 
+    parser.add_argument(
         "--model_path", type=str, default="", help="pretrained results"
     )    
+    parser.add_argument(
+        "--texpname", type=str, default="all", help="pretrained results"
+    )
     parser.add_argument(
         "--expname", type=str, default="all", help="pretrained results"
     )
     parser.add_argument(
-        "--nepoch", type=int, default=200, help="pretrained results"
+        "--nepoch", type=int, default=201, help="pretrained results"
+    )
+    parser.add_argument(
+        "--nrounds", type=int, default=20, help="GPU ID"
     )
     parser.add_argument(
         "--gpu_id", type=int, default=0, help="GPU ID"
     )
     parser.add_argument(
-        "--sgamma", type=float, default=.95, help="GPU ID"
+        "--sgamma", type=float, default=.01, help="GPU ID"
     )
     parser.add_argument(
         "--temperature", type=float, default=.1, help="GPU ID"

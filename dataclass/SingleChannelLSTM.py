@@ -22,14 +22,13 @@ class SingleChannelLSTM(BaseDataset):
         #print(file_ind, im_ind, self.max_len, self.each_len)
         #embed()
         last_img = self.limit_nps[file_ind][im_ind]
-
+        
         #this is TxHxW
-        traj = self.obs_nps[file_ind][im_ind:last_img].astype(np.float32)
+        traj = self.obs_nps[file_ind][im_ind:last_img,:,:,0].astype(np.float32)
         #this is TX2
         action = self.action_nps[file_ind][im_ind:last_img]
-
         trajimg = np.expand_dims(traj, 1)  # add channel dimension
-
+        
         zs = np.zeros((self.max_seq_length - trajimg.shape[0],) + trajimg.shape[1:])
         trajimg = np.concatenate((trajimg, zs)) # padding
 

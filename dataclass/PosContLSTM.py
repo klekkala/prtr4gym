@@ -8,11 +8,12 @@ import random
 from IPython import embed
 import torch
 
-class PosContFourStack(BaseDataset):
-    def __init__(self, root_dir, sample_next, transform=None):
-        super().__init__(root_dir, transform, action=True, value=True, reward=True, episode=True, terminal=True, goal=False)
+class PosContLSTM(BaseDataset):
+    def __init__(self, root_dir, sample_next, max_seq_length=1000, transform=None):
+        super().__init__(root_dir, transform, action=True, value=True, reward=True, episode=True, terminal=True, goal=False, use_lstm=True)
         #self.value_thresh = value_thresh
         print(root_dir)
+        self.max_seq_length = max_seq_length
         self.sample_next = sample_next
 
     def __getitem__(self, item):
@@ -36,14 +37,20 @@ class PosContFourStack(BaseDataset):
         #print(im_ind, deltat, self.limit_nps[file_ind][im_ind], self.terminal_nps[file_ind][self.limit_nps[file_ind][im_ind]])
         assert(self.terminal_nps[file_ind][self.limit_nps[file_ind][im_ind]] == 1)
 
-        #print(im_ind, deltat, im_ind+deltat)
-        #print(self.episode_nps[file_ind][im_ind], self.episode_nps[file_ind][im_ind+deltat], self.limit_nps[file_ind][im_ind])
         assert(self.episode_nps[file_ind][im_ind] == self.episode_nps[file_ind][im_ind+deltat])
 
-        #self.action.append(self.action_nps[file_ind][im_ind].astype(np.uint8))
-        #value = [self.value_nps[file_ind][im_ind].astype(np.float32)]
-        #episode = [self.episode_nps[file_ind][im_ind].astype(np.int32)]
+        curr_episode = self.episode_nps[file_ind][im_ind]
+        
+        start_ind = self.id_dict[file_ind][curr_episode]
+        
+        traj1img = np.expand_dims(self.obs_nps[file_ind][start_ind:im_ind-start_ind+1].astype(np.float32), axis=1)
+        traj2img = np.expand_dims(self.obs_nps[file_ind][start_ind:im_ind-start_ind+deltat+1].astype(np.float32), axis=1)
 
-        img = [self.obs_nps[file_ind][im_ind].astype(np.float32), self.obs_nps[file_ind][im_ind + deltat].astype(np.float32)]
-        #return np.stack(img, axis=0), np.stack(value, axis=0), np.stack(episode, axis=0)
+        zs1 = np.zeros((self.max_seq_length - traj1img.shape[0],) + traj1img.shape[1:]).astype(np.float32)
+        zs2 = np.zeros((self.max_seq_length - traj2img.shape[0],) + traj2img.shape[1:]).astype(np.float32)
+        
+        traj1img = np.concatenate((traj1img, zs1)) # padding
+        traj2img = np.concatenate((traj2img, zs2)) # padding
+    
+        img = [traj1img, traj2img]
         return np.stack(img, axis=0)

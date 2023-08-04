@@ -9,7 +9,6 @@ import torchvision.utils as vutils
 from collections import defaultdict
 import imageio as iio
 from IPython import embed
-from models.atarimodels import SingleAtariModel
 from torch.hub import load_state_dict_from_url
 import os
 import random
@@ -20,11 +19,12 @@ from IPython.display import clear_output
 from ray.rllib.models import ModelCatalog
 from PIL import Image
 from tqdm import trange, tqdm
-from models.RES_VAE import Encoder as ResEncoder
+from models.RES_VAE import TEncoder as ResEncoder
 from models.atari_vae import VAE, VAEBEV
-from models.LSTM import LSTM as BEVLSTM
-from models.atari_vae import Encoder
-from dataclass import BaseDataset, CarlaBEV, FourStack, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, PosContFourStack, NegContFourStack
+from models.LSTM import StateLSTM
+from models.LSTM import StateActionLSTM as BEVLSTM
+from models.atari_vae import Encoder, TEncoder
+from dataclass import BaseDataset, CarlaBEV, FourStack, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, PosContFourStack, NegContFourStack, PosContLSTM, NegContLSTM, ContFourStack
 import utils
 from arguments import get_args
 args = get_args()
@@ -32,7 +32,10 @@ args = get_args()
 
 def initialize(is_train):
 
-    root_dir = "/dev/shm/"
+    if 'CARLA' in args.model:
+        root_dir = "/home/tmp/kiran/"
+    else:
+        root_dir = "/dev/shm/"
     curr_dir = os.getcwd()
     use_cuda = torch.cuda.is_available()
     print(use_cuda)
@@ -60,7 +63,7 @@ def initialize(is_train):
         vae.eval()
         for param in vae.parameters():
             param.requires_grad = False
-        vae_model_path = "/lab/kiran/ckpts/pretrained/carla/BEV_VAE_CARLA_RANDOM_BEV_CARLA_E2E_0.01_256_64.pt"
+        vae_model_path = "/lab/kiran/ckpts/pretrained/carla/BEV_VAE_CARLA_RANDOM_BEV_CARLA_STANDARD_0.01_0.01_256_64.pt"
         vae_ckpt = torch.load(vae_model_path, map_location="cpu")
         vae.load_state_dict(vae_ckpt['model_state_dict'])
         encodernet = BEVLSTM(latent_size=32, action_size=2, hidden_size=32, batch_size=args.train_batch_size, num_layers=1, vae=vae).to(device)        
@@ -100,49 +103,67 @@ def initialize(is_train):
         posset = PosContFourStack.PosContFourStack(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma)
         if args.arch == 'resnet':
             print("using resnet")
-            encodernet = ResEncoder(channel_in=4, ch=32, z=512).to(device)
+            #encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TEncoder(channel_in=4, ch=64, z=512).to(device)
         else:
-            encodernet = Encoder(channel_in=4, ch=32, z=512).to(device)
+            encodernet = TEncoder(channel_in=4, ch=32, z=512).to(device)
         print(root_dir, args.expname)
         div_val = 255.0
+
+    elif args.model == "1CHANLSTM_CONT_ATARI":
+        negset = NegContLSTM.NegContLSTM(root_dir= root_dir + args.expname, transform=transform, max_seq_length=3000)
+        posset = PosContLSTM.PosContLSTM(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma, max_seq_length=3000)
+        if args.arch == 'resnet':
+            print("using resnet")
+            #encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encoder = TEncoder(channel_in=1, ch=64, z=512).to(device)
+        else:
+            encoder = TEncoder(channel_in=1, ch=32, z=512).to(device)
+        encodernet = StateLSTM(latent_size=512, hidden_size=512, batch_size=args.train_batch_size, num_layers=1, encoder=encoder)
+        
+        print(root_dir, args.expname)
+        div_val = 255.0
+
 
     elif args.model == "DUAL_4STACK_CONT_ATARI":
-        negset = NegContFourStack.NegContFourStack(root_dir= root_dir + args.expname, transform=transform)
-        posset = PosContFourStack.PosContFourStack(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma)
-        encodernet = TEncoder(channel_in=4, ch=16, z=512).to(device)
+        negset = ContFourStack.ContFourStack(root_dir= root_dir + args.texpname, transform=transform)
+        #posset = ContFourStack.ContFourStack(root_dir=root_dir + args.expname, transform=transform, max_len=50000)
+        posset = ContFourStack.ContFourStack(root_dir=root_dir + args.expname, transform=transform)
         print(root_dir, args.expname)
         div_val = 255.0
-        teachernet = TEncoder(channel_in=4, ch=16, z=512).to(device)
+        teachernet = TEncoder(channel_in=4, ch=32, z=512).to(device)
 
         #load teacher_encoder ckpt        
-        ModelCatalog.register_custom_model("model", SingleAtariModel)
-        load_ckpt = Policy.from_checkpoint("/lab/kiran/logs/rllib/atari/4stack/1.a_BeamRiderNoFrameskip-v4_singlegame_full_e2e_PolicyNotLoaded_0.0_20000_2000_4stack/23_07_04_18_11_34/checkpoint").get_weights()
+        #ModelCatalog.register_custom_model("model", SingleAtariModel)
+        #load_ckpt = Policy.from_checkpoint("/lab/kiran/logs/rllib/atari/4stack/1.a_BeamRiderNoFrameskip-v4_singlegame_full_e2e_PolicyNotLoaded_0.0_20000_2000_4stack/23_07_04_18_11_34/checkpoint").get_weights()
 
         #transfer weights to prtr model
-        model_state_dict = {}
-        model_state_dict['encoder.1.weight'] = torch.from_numpy(load_ckpt['_convs.0._model.1.weight'])
-        model_state_dict['encoder.1.bias'] = torch.from_numpy(load_ckpt['_convs.0._model.1.bias'])
-        model_state_dict['encoder.4.weight'] = torch.from_numpy(load_ckpt['_convs.1._model.1.weight'])
-        model_state_dict['encoder.4.bias'] = torch.from_numpy(load_ckpt['_convs.1._model.1.bias'])
-        model_state_dict['encoder.6.weight'] = torch.from_numpy(load_ckpt['_convs.2._model.0.weight'])
-        model_state_dict['encoder.6.bias'] = torch.from_numpy(load_ckpt['_convs.2._model.0.bias'])
-
+        if args.tmodel_path == "":
+            model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(args.kl_weight) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt"
+        else:
+            model_path = args.save_dir + args.tmodel_path
+        checkpoint = torch.load(model_path, map_location="cpu")
+        teachernet.load_state_dict(checkpoint['model_state_dict'])
+        
+        #freeze teachers model
         teachernet.eval()
         for param in teachernet.parameters():
             param.requires_grad = False
-        teachernet.load_state_dict(model_state_dict)
 
         #initialize student model
-        encodernet = Encoder(channel_in=4, ch=16, z=512).to(device)
-        model_state_dict['conv_mu.weight'] = torch.from_numpy(np.random.randn(512, 512, 1, 1))
-        model_state_dict['conv_mu.bias'] = torch.from_numpy(np.random.randn(512))        
-        encodernet.load_state_dict(model_state_dict)
+        encodernet = Encoder(channel_in=4, ch=32, z=512).to(device)
+        checkpoint['model_state_dict']['adapter.weight'] = torch.from_numpy(np.ones((512, 512, 1, 1)))
+        checkpoint['model_state_dict']['adapter.bias'] = torch.from_numpy(np.zeros(512))
+        encodernet.load_state_dict(checkpoint['model_state_dict'])
         print(root_dir, args.expname)
+
         encodernet.encoder.eval()
-        for name, param in encodernet.named_parameters():
-            if 'encoder' in name:
-                param.requires_grad = False
+        for param in encodernet.encoder.parameters():
+            param.requires_grad = False
         
+        encodernet.conv_mu.eval()
+        for param in encodernet.conv_mu.parameters():
+            param.requires_grad = False
         div_val = 255.0
 
     elif args.model == "CONTLSTM_ATARI":
@@ -189,9 +210,12 @@ def initialize(is_train):
         os.makedirs(curr_dir + "/Results")
 
     if args.load_checkpoint:
-        
+        if 'VAE' in args.model:
+            auxval = args.kl_weight
+        else:
+            auxval = args.temperature
         if args.model_path == "":
-            model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(args.kl_weight) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt"
+            model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt"
         else:
             model_path = args.save_dir + args.model_path
         print(model_path)
@@ -214,7 +238,6 @@ def initialize(is_train):
     if 'DUAL' in args.model:
         return encodernet, teachernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
     elif 'CONT' in args.model:
-        print("contlksjfjak")
         return encodernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
     else:
         return encodernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir

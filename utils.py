@@ -31,6 +31,7 @@ def get_data_STL10(negset, neg_batch_size, transform, posset=None, pos_batch_siz
 # Linear scaling the learning rate down
 def lr_Linear(optimizer, epoch_max, epoch, lr):
     lr_adj = ((epoch_max - epoch) / epoch_max) * lr
+#    lr_adj = 0.1 ** (epoch/10) * lr
     set_lr(optimizer, lr=lr_adj)
 
 

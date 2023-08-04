@@ -54,7 +54,7 @@ for i, testdata in enumerate(tqdm(testloader, leave=False)):
             if "4STACK" in args.model:
                 test_images = test_images.reshape(20, 1, 84, 84)
                 recon_data = recon_data.reshape(20, 1, 84, 84)
-
+        
         vutils.save_image(torch.cat((torch.sigmoid(recon_data).cpu(), test_images.cpu()), 2),
                             "%s/%s/%s_%s.png" % (curr_dir, "Results", args.model, args.expname.upper() + "_" + str(args.kl_weight)))
 

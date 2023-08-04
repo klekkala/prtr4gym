@@ -78,7 +78,7 @@ from PIL import Image
 class SingleAtariEnv(gym.Env):
     def __init__(self, env_config):
         #if env_config['framestack']:
-        self.env = wrap_custom(gym.make(env_config['env'], full_action_space=False), framestack=env_config['framestack'])
+        self.env = wrap_custom(gym.make(env_config['env'], full_action_space=env_config['full_action_space']), framestack=env_config['framestack'])
 
         self.action_space = self.env.action_space
         self.observation_space = self.env.observation_space

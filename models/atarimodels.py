@@ -20,9 +20,10 @@ from ray.rllib.policy.sample_batch import SampleBatch
 from ray.rllib.utils.annotations import override
 from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.models.torch.visionnet import VisionNetwork
-#from vaemodel import StackEncoder as StackEncoder
-from models.atari_vae import VAE
-from models.atari_vae import Encoder
+from atari_vae import VAE
+from atari_vae import Encoder, TEncoder
+#from RES_VAE import Encoder as ResEncoder
+from RES_VAE import TEncoder as TResEncoder
 #from atari_vae import LSTMVAE as LSTMVAE
 from IPython import embed
 
@@ -59,21 +60,27 @@ class SingleAtariModel(VisionNetwork):
         self, observation_space, action_space, num_outputs, model_config, name
     ):
         super().__init__(observation_space, action_space, num_outputs, model_config, name)
+        if "RESNET" in model_config['custom_model_config']['backbone'] and "DUAL" in model_config['custom_model_config']['backbone']:            
+            self._convs = ResEncoder(channel_in=4, ch=64, z=512)
+        elif "RESNET" in model_config['custom_model_config']['backbone']:
+            self._convs = TResEncoder(channel_in=4, ch=64, z=512)
+        elif 'DUAL' in model_config['custom_model_config']['backbone']:
+            self._convs = Encoder(channel_in=4, ch=32, z=512)
+        elif '4STACK_CONT' in model_config['custom_model_config']['backbone']:
+            self._convs = TEncoder(channel_in=4, ch=32, z=512)
+        elif '4STACK_VAE' in model_config['custom_model_config']['backbone']:
+            self._convs = VAE(channel_in=4, ch=32, z=512)
 
-        if 'e2e' not in model_config['custom_model_config']['backbone'] and model_config['custom_model_config']['backbone'] != 'random':
+
+        #if 'e2e' not in model_config['custom_model_config']['backbone'] and model_config['custom_model_config']['backbone'] != 'random':
         #if 'e2e' not in model_config['custom_model_config']['backbone']:
             #if model_config['custom_model_config']['backbone'] == 'random':
             #    self._convs = VAE(channel_in=observation_space.shape[-1], z=512)
-            if '4STACK_CONT' in model_config['custom_model_config']['backbone']:
-                self._convs = Encoder(channel_in=4, ch=32, z=512)
-            elif '1CHAN' in model_config['custom_model_config']['backbone']:
-                self._convs = VAE(channel_in=1, ch=32, z=512)
-            elif '4STACK' in model_config['custom_model_config']['backbone']:
-                self._convs = VAE(channel_in=4, ch=32, z=512)
-            else:
-                raise NotImplementedError("vae model not implemented")
+
+            
         #else:
-        #    self._convs = VAE(channel_in=observation_space.shape[-1], z=512)
+            #in the case of e2e or random
+        #    self._convs = backbone
         #    if model_config['custom_model_config']['temporal'] == 'lstm' or model_config['custom_model_config']['temporal'] == 'attention':
         #        self._convs = LSTMVAE(channel_in=observation_space.shape[-1], z=512)
         #    else:
@@ -89,14 +96,18 @@ class SingleAtariModel(VisionNetwork):
             self._convs.load_state_dict(checkpoint['model_state_dict'])
         
         if not model_config['custom_model_config']['train_backbone']:
-            print("freezing backbone layers")
-            self._convs.encoder.eval()
-            for param in self._convs.encoder.parameters():
+            print("freezing encoder layers")
+            #freeze the entire backbone
+            self._convs.eval()
+            for param in self._convs.parameters():
                 param.requires_grad = False
-            self._convs.conv_mu.eval()
-            for param in self._convs.conv_mu.parameters():
-                param.requires_grad = False
+            #unfreeze the adapter
+            #self._convs.conv_mu.train()
+            #for param in self._convs.conv_mu.parameters():
+            #    param.requires_grad = True
 
+        #embed()
+        #self.trainable_variables(True)
 
 #this is class is reused for every game/city/town
 #this is equivalent to a spec in rl_module api

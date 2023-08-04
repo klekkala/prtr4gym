@@ -20,7 +20,7 @@ class CarlaBEV(BaseDataset):
             im_ind = item - self.each_len[file_ind-1]
         #print(file_ind, im_ind, self.max_len, self.each_len)
         #embed()
-        img = np.expand_dims(self.obs_nps[file_ind][im_ind], axis=0).astype(np.float32)
+        img = np.expand_dims(self.obs_nps[file_ind][im_ind][:,:,0], axis=0).astype(np.float32)
 
         target = img
 

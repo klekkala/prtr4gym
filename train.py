@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import torchvision.models as models
 import torchvision.utils as vutils
 from torch.autograd import Variable
+from evaluate import eval_adapter
 from collections import defaultdict
 from pytorch_metric_learning import losses
 import imageio as iio
@@ -30,6 +31,9 @@ import initial
 args = get_args()
 
 if 'DUAL' in args.model:
+    #negloader -> tset, #posloader -> eset
+    #len(tset) > len(eset)
+    #negloader should be loading the teacher dataset
     encodernet, teachernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(True)
 elif 'CONT' in args.model:
     encodernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(True)
@@ -46,6 +50,23 @@ elif 'LSTM' in args.model:
 else:
     loss_func = utils.vae_loss
 
+
+if 'DUAL' in args.model:
+    f = open('results.txt', 'w')
+    f.write('Before Training\n')
+    f.close()
+
+    res = []
+    for _ in range(args.nrounds):
+        reward_val = eval_adapter("/lab/kiran/logs/rllib/atari/4stack/1.a_CarnivalNoFrameskip-v4_singlegame_full_4STACK_CONT_ATARI_EXPERT_4STACK_TRAIN_STANDARD_0.1_0.01_512_512.pt_PolicyNotLoaded_0.0_20000_2000_4stack/23_07_29_14_52_59/checkpoint/", "/lab/kiran/logs/rllib/atari/4stack/1.a_DemonAttackNoFrameskip-v4_singlegame_full_DUAL_4STACK_CONT_ATARI_TRAINED_4STACK_DEMONATTACK_STANDARD_0.1_0.01_512_512.pt_PolicyNotLoaded_0.0_20000_2000_4stack/23_07_30_01_02_21/checkpoint/", "DemonAttackNoFrameskip-v4", encodernet)
+        res.append(reward_val)
+    average = sum(res)/len(res)
+    print(average)
+    f = open('results.txt', 'a')
+    f.write(' Average: ' + str(average) + ', ')
+    f.write('\nAfter Training\n')
+    f.close()
+
 # %% Start Training
 for epoch in trange(start_epoch, args.nepoch, leave=False):
     
@@ -61,7 +82,7 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
         positerator = iter(posloader)
         
     for i, negdata in enumerate(tqdm(negloader, leave=False)):
-    
+        
         if 'CONT' in args.model:
             try:
                 posdata = next(positerator)
@@ -73,32 +94,52 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
                 #value = torch.flatten(value)
                 #episode = torch.flatten(episode)
                 #target = torch.cat((torch.unsqueeze(value, 1), torch.unsqueeze(episode, 1)), axis=1)
-            neg_reshape_val = negdata.to(device)/div_val
-            pos_reshape_val = posdata.to(device)/div_val
-            
-            #batch_size, num_negative, embedding_size = 32, 48, 128
-            #sample_batch_size -> number of positives/queries
-            #train_batch_size -> number of negatives
-            query_imgs, pos_imgs = torch.split(pos_reshape_val, 1, dim=1)
-            query_imgs = torch.squeeze(query_imgs)
-            pos_imgs = torch.squeeze(pos_imgs)
-            query = encodernet(query_imgs)
-            positives = encodernet(pos_imgs)
-            negatives = encodernet(neg_reshape_val)
 
 
-            #allocat classes for queries, positives and negatives
-            posclasses = torch.arange(start=0, end=query.shape[0])
-            negclasses = torch.arange(start=query.shape[0], end=query.shape[0]+negatives.shape[0])
-            
             if 'DUAL' in args.model:
                 #for now we are testing with the same game
                 #so the adapter learns an identity function
-                tquery = teachernet(query_imgs)
-                tpositives = teachernet(pos_imgs)
-                tnegatives = teachernet(neg_reshape_val)
-                loss = loss_func(torch.cat([query, positives, negatives, tquery, tpositives], axis=0), torch.cat([posclasses, posclasses, negclasses, posclasses, posclasses], axis=0))
+                negimg_reshape_val = negdata[0].to(device)/div_val
+                posimg_reshape_val = posdata[0].to(device)/div_val
+                negtar_reshape_val = negdata[1].to(device)
+                postar_reshape_val = posdata[1].to(device)
+
+                tquery = teachernet(negimg_reshape_val)
+                equery = encodernet(posimg_reshape_val)
+                tclass = negtar_reshape_val
+                eclass = postar_reshape_val
+                loss = loss_func(torch.cat([tquery, equery], axis=0), torch.cat([tclass, eclass], axis=0))
+
+
+
+            #if its 4stack_cont_atari
             else:
+                neg_reshape_val = negdata.to(device)/div_val
+                pos_reshape_val = posdata.to(device)/div_val        
+                #batch_size, num_negative, embedding_size = 32, 48, 128
+                #sample_batch_size -> number of positives/queries
+                #train_batch_size -> number of negatives
+                query_imgs, pos_imgs = torch.split(pos_reshape_val, 1, dim=1)
+
+                
+                
+                if 'LSTM' in args.model:
+                    encodernet.init_hs()
+                    neg_reshape_val = torch.unsqueeze(neg_reshape_val, axis=2)
+                    query_imgs = torch.reshape(query_imgs, (args.train_batch_size, 3000, 1, 84, 84))
+                    pos_imgs = torch.reshape(pos_imgs, (args.train_batch_size, 3000, 1, 84, 84))
+                else:
+                    query_imgs = torch.squeeze(query_imgs)
+                    pos_imgs = torch.squeeze(pos_imgs)
+
+                query = encodernet(query_imgs)
+                positives = encodernet(pos_imgs)
+                negatives = encodernet(neg_reshape_val)
+
+                #allocat classes for queries, positives and negatives
+                posclasses = torch.arange(start=0, end=query.shape[0])
+                negclasses = torch.arange(start=query.shape[0], end=query.shape[0]+negatives.shape[0])
+                
                 loss = loss_func(torch.cat([query, positives, negatives], axis=0), torch.cat([posclasses, posclasses, negclasses], axis=0))
 
         elif 'LSTM' in args.model:
@@ -113,31 +154,25 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
             z_prev, _, _ = encodernet.encode(image_reshape_val)
             z_pred = encodernet(action, z_prev)
             loss = loss_func(z_pred, z_gt)
-
         else:
             (img, target) = negdata
-            image_reshape_val = img.to(device)/div_val
+            image_val = img.to(device)/div_val
             targ = target.to(device)/div_val
 
-
-            recon_data, mu, logvar = encodernet(image_reshape_val)
+            recon_data, mu, logvar = encodernet(image_val)
 
             #in the constrastive case, we get a batch of pair of embeddings and wheather they are positive or negative
     
             loss = loss_func(recon_data, targ, mu, logvar, args.kl_weight)
             
-        
-
+        #break
         loss_iter.append(loss.item())
         loss_log.append(loss.item())
         #from IPython import embed; embed()
         encodernet.zero_grad()
         loss.backward()
         optimizer.step()
-    
-
-
-
+    print("learning rate:", optimizer.param_groups[0]['lr'])
 
 
 
@@ -147,13 +182,30 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
         auxval = args.kl_weight
     else:
         auxval = args.temperature
-    # Save a checkpoint with a specific filename
-    torch.save({
-        'epoch': epoch,
-        'loss_log': loss_log,
-        'model_state_dict': encodernet.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict()
+    
 
-    }, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt")
+    if 'DUAL' in args.model:
+        f = open('results.txt', 'a')
+        f.write('\n')
+        f.close()
+        res = []
+        for _ in range(args.nrounds):
+            reward_val = eval_adapter("/lab/kiran/logs/rllib/atari/4stack/1.a_CarnivalNoFrameskip-v4_singlegame_full_4STACK_CONT_ATARI_EXPERT_4STACK_TRAIN_STANDARD_0.1_0.01_512_512.pt_PolicyNotLoaded_0.0_20000_2000_4stack/23_07_29_14_52_59/checkpoint/", "/lab/kiran/logs/rllib/atari/4stack/1.a_DemonAttackNoFrameskip-v4_singlegame_full_DUAL_4STACK_CONT_ATARI_TRAINED_4STACK_DEMONATTACK_STANDARD_0.1_0.01_512_512.pt_PolicyNotLoaded_0.0_20000_2000_4stack/23_07_30_01_02_21/checkpoint/", "DemonAttackNoFrameskip-v4", encodernet)
+            res.append(reward_val)
+        average = sum(res)/len(res)
+        print(average)
+        f = open('results.txt', 'a')
+        f.write(' Average: ' + str(average) + ', ')
+        f.close()
+        
+    #continue
+    # Save a checkpoint with a specific filename  
+    if epoch >= 150 and epoch <= 200 and epoch%10 == 0:
+        torch.save({
+            'epoch': epoch,
+            'loss_log': loss_log,
+            'model_state_dict': encodernet.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict()
 
+        }, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + "_" + str(epoch) + ".pt")
 

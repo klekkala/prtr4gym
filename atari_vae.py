@@ -137,7 +137,7 @@ class TEncoder(nn.Module):
     def forward(self, x):
         x = self.encoder(x)
         x = self.conv_mu(x)
-        x = torch.flatten(x, start_dim=1)
+        #x = torch.flatten(x, start_dim=1)
         return x
 
 
@@ -153,5 +153,5 @@ class Encoder(TEncoder):
         x = self.encoder(x)
         x = self.conv_mu(x)
         x = self.adapter(x)
-        x = torch.flatten(x, start_dim=1)
+        #x = torch.flatten(x, start_dim=1)
         return x
