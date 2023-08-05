@@ -27,6 +27,7 @@ from PIL import Image
 from tqdm import trange, tqdm
 import utils
 import initial
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 args = get_args()
 
@@ -147,15 +148,19 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
 
         elif 'LSTM' in args.model:
             #CHEN
-            (img, target, action) = negdata
+            (img, action, length, target) = negdata
             image_reshape_val = img.to(device)/div_val
             targ = target.to(device)/div_val
             action = action.to(device)
-
+            
             encodernet.init_hs(image_reshape_val.shape[0])
-            z_gt, _, _ = encodernet.encode(targ)
             z_prev, _, _ = encodernet.encode(image_reshape_val)
-            z_pred = encodernet(action, z_prev)
+            z_gt, _, _ = encodernet.encode(targ)
+            in_al = torch.cat([torch.Tensor(action), z_prev], dim=-1).float()
+            in_pack = pack_padded_sequence(in_al, length, batch_first=True)
+            z_pred_packed = encodernet(in_pack)
+            z_pred, _ = pad_packed_sequence(z_pred_packed, batch_first=True)
+            
             loss = loss_func(z_pred, z_gt)
         else:
             (img, target) = negdata

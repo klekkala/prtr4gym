@@ -50,9 +50,8 @@ class StateActionLSTM(StateLSTM):
         img = self.vae.recon(z_f)
         return torch.reshape(img, z.shape[:2] + img.shape[-3:])
 
-    def forward(self, action, latent):
-        in_al = torch.cat([torch.Tensor(action), latent], dim=-1)
-        outs, _ = self.lstm(in_al.float(), (self.h_0, self.c_0))
+    def forward(self, x):
+        outs, _ = self.lstm(x, (self.h_0, self.c_0))
         return outs
 
 

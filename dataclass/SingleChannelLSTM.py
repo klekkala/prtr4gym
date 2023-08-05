@@ -27,16 +27,7 @@ class SingleChannelLSTM(BaseDataset):
         #this is TxHxW
         traj = self.obs_nps[file_ind][im_ind:last_img+1,:,:,0].astype(np.float32)
         #this is TX2
-        action = self.action_nps[file_ind][im_ind:last_img]
+        action = self.action_nps[file_ind][im_ind:last_img+1]
         trajimg = np.expand_dims(traj, 1)  # add channel dimension
-        
-        pads = np.tile(trajimg[-1], (self.max_seq_length - trajimg.shape[0], 1, 1, 1))
-        trajimg = np.concatenate((trajimg, pads)) # padding
-        target = trajimg[1:]  # offset
-        target = np.concatenate((target, np.tile(trajimg[-1], (1, 1, 1, 1)))) # padding
-        #if self.transform is not None:
-        #    img = self.transform(img)
-        #    target = self.transform(target)
-        action = np.concatenate((action, np.zeros((trajimg.shape[0]-action.shape[0],) + (action.shape[-1],)))) # padding
-        
-        return trajimg.astype(np.float32), target.astype(np.float32), action.astype(np.float32)
+       
+        return trajimg.astype(np.float32), action.astype(np.float32)
