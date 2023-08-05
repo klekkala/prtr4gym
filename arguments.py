@@ -41,7 +41,7 @@ def get_args():
         "--expname", type=str, default="all", help="pretrained results"
     )
     parser.add_argument(
-        "--maxseq", type=int, default=4000, help="pretrained results"
+        "--maxseq", type=int, default=7500, help="pretrained results"
     )
     parser.add_argument(
         "--nepoch", type=int, default=201, help="pretrained results"

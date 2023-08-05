@@ -13,15 +13,24 @@ class NegContLSTM(BaseDataset):
         self.max_seq_length = max_seq_length
 
     def __getitem__(self, item):
-        file_ind = int(item/1000000)
-        im_ind = item - (file_ind*1000000)
-        curr_episode = self.episode_nps[file_ind][im_ind]
-
-        start_ind = self.id_dict[file_ind][curr_episode]
+        file_ind = 0
+        im_ind = item
+        #file_ind = int(item/1000000)
+        #im_ind = item - (file_ind*1000000)
         
-        trajimg = self.obs_nps[file_ind][start_ind:im_ind-start_ind+1].astype(np.float32)
-        zs = np.zeros((self.max_seq_length - trajimg.shape[0],) + trajimg.shape[1:])
-        trajimg = np.concatenate((trajimg, zs)) # padding
+        
+        #start index of the episode
+        start_ind = self.id_dict[file_ind][im_ind]
+        
+        #last index of the episode
+        last_ind = self.limit_nps[file_ind][start_ind]
 
-        return trajimg
+        inputtraj = np.expand_dims(self.obs_nps[file_ind][start_ind:last_ind+1].astype(np.float32), axis=1)
+        try:
+            zs = np.zeros((self.max_seq_length - inputtraj.shape[0],) + inputtraj.shape[1:]).astype(np.float32)
+        except:
+            print(inputtraj.shape)
+        inputtraj = np.concatenate((inputtraj, zs)) # padding
+
+        return inputtraj
 

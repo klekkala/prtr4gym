@@ -54,8 +54,7 @@ class BaseDataset(Dataset):
                     self.id_dict.append(ab[()])
 
         for i in range(len(self.obs_nps)):
-            #only for carla
-            if self.use_lstm and 'carla' in self.root_dir:
+            if self.use_lstm:
                 if len(self.each_len) == 0:
                     self.each_len.append(self.episode_nps[i][-1])
                 else:

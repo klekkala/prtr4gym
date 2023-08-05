@@ -37,7 +37,7 @@ for i, testdata in enumerate(tqdm(testloader, leave=False)):
             targ = target.to(device)/div_val
             action = action.to(device)
 
-            encodernet.init_hs()
+            encodernet.init_hs(args.train_batch_size)
             z_gt, _, _ = encodernet.encode(targ)
             z_prev, _, _ = encodernet.encode(image_reshape_val)
             z_pred = encodernet(action, z_prev)

@@ -123,7 +123,7 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
                 
                 
                 if 'LSTM' in args.model:
-                    encodernet.init_hs()
+                    encodernet.init_hs(batch_size=args.train_batch_size)
                     neg_reshape_val = torch.unsqueeze(neg_reshape_val, axis=2)
                     query_imgs = torch.reshape(query_imgs, (args.train_batch_size, args.maxseq, 1, 84, 84))
                     pos_imgs = torch.reshape(pos_imgs, (args.train_batch_size, args.maxseq, 1, 84, 84))
@@ -134,6 +134,11 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
                 query = encodernet(query_imgs)
                 positives = encodernet(pos_imgs)
                 negatives = encodernet(neg_reshape_val)
+              
+                if 'LSTM' in args.model:
+                    query = query.reshape((-1, 512))
+                    positives = positives.reshape((-1, 512))
+                    negatives = negatives.reshape((-1, 512))
                 
                 #allocat classes for queries, positives and negatives
                 posclasses = torch.arange(start=0, end=query.shape[0])
@@ -147,7 +152,7 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
             targ = target.to(device)/div_val
             action = action.to(device)
 
-            encodernet.init_hs()
+            encodernet.init_hs(image_reshape_val.shape[0])
             z_gt, _, _ = encodernet.encode(targ)
             z_prev, _, _ = encodernet.encode(image_reshape_val)
             z_pred = encodernet(action, z_prev)
@@ -197,13 +202,12 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
         f.close()
         
     #continue
-    # Save a checkpoint with a specific filename  
-    if epoch >= 150 and epoch <= 200 and epoch%10 == 0:
-        torch.save({
-            'epoch': epoch,
-            'loss_log': loss_log,
-            'model_state_dict': encodernet.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict()
+    # Save a checkpoint with a specific filename
+    torch.save({
+        'epoch': epoch,
+        'loss_log': loss_log,
+        'model_state_dict': encodernet.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict()
 
-        }, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + "_" + str(epoch) + ".pt")
+    }, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt")
 

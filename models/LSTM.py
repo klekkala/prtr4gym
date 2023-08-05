@@ -11,13 +11,14 @@ class StateLSTM(nn.Module):
     def __init__(self, latent_size, hidden_size, batch_size, num_layers, encoder):
         super().__init__()
         self.encoder = encoder
-        self.lstm = nn.LSTM(latent_size, hidden_size, batch_first=True).cuda()
-        self.h_size = (num_layers, batch_size, hidden_size)
-        self.init_hs()
+        self.lstm = nn.LSTM(latent_size, hidden_size, num_layers, batch_first=True).cuda()
+        self.num_layers = num_layers
+        self.hidden_size = hidden_size
+        self.init_hs(batch_size)
 
-    def init_hs(self):
-        self.h_0 = Variable(torch.randn(self.h_size)).to(device)
-        self.c_0 = Variable(torch.randn(self.h_size)).to(device)
+    def init_hs(self, batch_size):
+        self.h_0 = Variable(torch.randn((self.num_layers, batch_size, self.hidden_size))).to(device)
+        self.c_0 = Variable(torch.randn((self.num_layers, batch_size, self.hidden_size))).to(device)
 
     def forward(self, image):
         x = torch.reshape(image, (-1,) + image.shape[-3:]).float()
@@ -35,7 +36,7 @@ class StateActionLSTM(StateLSTM):
         self.vae.eval()
         for param in self.vae.parameters():
             param.requires_grad = False
-        self.lstm = nn.LSTM(latent_size + action_size, hidden_size, batch_first=True)
+        self.lstm = nn.LSTM(latent_size + action_size, hidden_size, num_layers, batch_first=True)
 
     def encode(self, image):
         x = torch.reshape(image, (-1,) + image.shape[-3:])

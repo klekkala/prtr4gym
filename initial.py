@@ -66,7 +66,7 @@ def initialize(is_train):
         vae_model_path = "/lab/kiran/ckpts/pretrained/carla/BEV_VAE_CARLA_RANDOM_BEV_CARLA_STANDARD_0.01_0.01_256_64.pt"
         vae_ckpt = torch.load(vae_model_path, map_location="cpu")
         vae.load_state_dict(vae_ckpt['model_state_dict'])
-        encodernet = BEVLSTM(latent_size=32, action_size=2, hidden_size=32, batch_size=args.train_batch_size, num_layers=1, vae=vae).to(device)        
+        encodernet = BEVLSTM(latent_size=32, action_size=2, hidden_size=32, batch_size=args.train_batch_size, num_layers=2, vae=vae).to(device)        
         div_val = 255.0
 
 
