@@ -4,6 +4,7 @@ from collections import defaultdict
 from PIL import Image
 import numpy as np
 import os
+import bisect
 from IPython import embed
 import torch
 
@@ -12,11 +13,13 @@ class NegContLSTM(BaseDataset):
         super().__init__(root_dir, transform, action=False, reward=False, terminal=False, episode=True, goal=False, use_lstm=True)
         self.max_seq_length = max_seq_length
 
+        
     def __getitem__(self, item):
-        file_ind = 0
-        im_ind = item
-        #file_ind = int(item/1000000)
-        #im_ind = item - (file_ind*1000000)
+        file_ind = bisect.bisect_right(self.each_len, item)
+        if file_ind == 0:
+            im_ind = item
+        else:
+            im_ind = item - self.each_len[file_ind-1]
         
         
         #start index of the episode
@@ -26,11 +29,13 @@ class NegContLSTM(BaseDataset):
         last_ind = self.limit_nps[file_ind][start_ind]
 
         inputtraj = np.expand_dims(self.obs_nps[file_ind][start_ind:last_ind+1].astype(np.float32), axis=1)
-        try:
+        
+        if self.max_seq_length == 0:
+            return inputtraj
+        
+        else:
             zs = np.zeros((self.max_seq_length - inputtraj.shape[0],) + inputtraj.shape[1:]).astype(np.float32)
-        except:
-            print(inputtraj.shape)
-        inputtraj = np.concatenate((inputtraj, zs)) # padding
+            inputtraj = np.concatenate((inputtraj, zs)) # padding
 
         return inputtraj
 

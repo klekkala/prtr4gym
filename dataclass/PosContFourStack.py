@@ -44,6 +44,11 @@ class PosContFourStack(BaseDataset):
         #value = [self.value_nps[file_ind][im_ind].astype(np.float32)]
         #episode = [self.episode_nps[file_ind][im_ind].astype(np.int32)]
 
-        img = [self.obs_nps[file_ind][im_ind].astype(np.float32), self.obs_nps[file_ind][im_ind + deltat].astype(np.float32)]
+
+        if len(self.obs_nps[file_ind][im_ind].shape) == 3:
+            img = [self.obs_nps[file_ind][im_ind].astype(np.float32), self.obs_nps[file_ind][im_ind + deltat].astype(np.float32)]
+        else:
+            img = [np.expand_dims(self.obs_nps[file_ind][im_ind].astype(np.float32), axis=0), np.expand_dims(self.obs_nps[file_ind][im_ind + deltat].astype(np.float32), axis=0)]
+        
         #return np.stack(img, axis=0), np.stack(value, axis=0), np.stack(episode, axis=0)
         return np.stack(img, axis=0)

@@ -14,25 +14,30 @@ import os
 import random
 import numpy as np
 import math
-from ray.rllib.policy.policy import Policy
+#from ray.rllib.policy.policy import Policy
 from IPython.display import clear_output
-from ray.rllib.models import ModelCatalog
+#from ray.rllib.models import ModelCatalog
 from PIL import Image
 from tqdm import trange, tqdm
 from models.RES_VAE import TEncoder as ResEncoder
 from models.atari_vae import VAE, VAEBEV
 from models.LSTM import StateLSTM
-from models.LSTM import StateActionLSTM as BEVLSTM
+from models.LSTM import MDLSTM as BEVLSTM
+from models.resnet import ResNet
+from models.BEVEncoder import BEVEncoder
 from models.atari_vae import Encoder, TEncoder
-from dataclass import BaseDataset, CarlaBEV, FourStack, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, PosContFourStack, NegContFourStack, PosContLSTM, NegContLSTM, ContFourStack
+from dataclass import BaseDataset, CarlaBEV, FourStack, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, \
+    PosContFourStack, NegContFourStack, PosContLSTM, NegContLSTM, ContFourStack, PosContThreeLSTM, NegContThreeLSTM, CarlaFPVBEV
 import utils
 from arguments import get_args
+
 args = get_args()
 
 
 def initialize(is_train):
-
     if 'CARLA' in args.model:
+        root_dir = "/home/tmp/kiran/"
+    if 'BEV_LSTM' in args.model:
         root_dir = "/home/tmp/kiran/"
     else:
         root_dir = "/dev/shm/"
@@ -43,35 +48,36 @@ def initialize(is_train):
     print(device)
     # %%
 
+    # image_size = 84
+    # if something looks wrong.. look at the transform line
+    # OLD once changed on 5 june
+    # transform = T.Compose([T.Resize(image_size), T.ToTensor()])
 
-    #image_size = 84
-    #if something looks wrong.. look at the transform line
-    #OLD once changed on 5 june
-    #transform = T.Compose([T.Resize(image_size), T.ToTensor()])
-    
     transform = T.Compose([T.ToTensor()])
 
     if args.model == "BEV_VAE_CARLA":
-        trainset = CarlaBEV.CarlaBEV(root_dir= root_dir + args.expname, transform=transform)
+        trainset = CarlaBEV.CarlaBEV(root_dir=root_dir + args.expname, transform=transform)
         encodernet = VAEBEV(channel_in=1, ch=16, z=32).to(device)
         div_val = 255.0
-    
-    #CHEN
+
+    # CHEN
     elif args.model == "BEV_LSTM_CARLA":
-        trainset = SingleChannelLSTM.SingleChannelLSTM(root_dir= root_dir + args.expname, transform=transform)
+        trainset = SingleChannelLSTM.SingleChannelLSTM(root_dir=root_dir + args.expname, transform=transform)
         vae = VAEBEV(channel_in=1, ch=16, z=32).to(device)
-        vae.eval()
-        for param in vae.parameters():
-            param.requires_grad = False
         vae_model_path = "/lab/kiran/ckpts/pretrained/carla/BEV_VAE_CARLA_RANDOM_BEV_CARLA_STANDARD_0.01_0.01_256_64.pt"
         vae_ckpt = torch.load(vae_model_path, map_location="cpu")
         vae.load_state_dict(vae_ckpt['model_state_dict'])
-        encodernet = BEVLSTM(latent_size=32, action_size=2, hidden_size=32, batch_size=args.train_batch_size, num_layers=2, vae=vae).to(device)        
+        vae.eval()
+        for param in vae.parameters():
+            param.requires_grad = False
+        
+        encodernet = BEVLSTM(latent_size=32, action_size=2, hidden_size=256, gaussian_size=5,
+                             num_layers=1, vae=vae).to(device)
         div_val = 255.0
 
 
     elif args.model == "4STACK_VAE_ATARI":
-        trainset = FourStack.FourStack(root_dir= root_dir + args.expname, transform=transform)
+        trainset = FourStack.FourStack(root_dir=root_dir + args.expname, transform=transform)
         encodernet = VAE(channel_in=4, ch=32, z=512).to(device)
         div_val = 255.0
 
@@ -80,126 +86,174 @@ def initialize(is_train):
         encodernet = VAE(channel_in=3, ch=32, z=512).to(device)
         div_val = 1.0
 
-    #incase you need a rgb model atari
+    # incase you need a rgb model atari
     elif args.model == "1CHAN_VAE_ATARI101":
         trainset = SingleAtari101.SingleAtari101(root_dir=root_dir + args.expname, transform=transform)
         encodernet = VAE(channel_in=1, ch=32, z=512).to(device)
         div_val = 1.0
 
-    #single channel vae used for notemp and lstm mode
+    # single channel vae used for notemp and lstm mode
     elif args.model == "1CHAN_VAE_ATARI":
         trainset = SingleChannel.SingleChannel(root_dir=root_dir + args.expname, transform=transform)
         encodernet = VAE(channel_in=1, ch=32, z=512).to(device)
         div_val = 255.0
 
-    #our method.. note that 
+    # our method.. note that
     # cont4stack_atari: the dataloader will give 2 pairs of 4stack observations, their actions and their values
     # contlstm_atari: the dataloader will give 2 pairs of observation, action and value/reward arrays
     # contlstm_beogym: the dataloader will give 2 pairs of observation, action and value/reward arrays along with goal points for those.
     # BUT ULTIMATELY.. THE LOSS FUNCTION MUST GET EMBEDDINGS AND IF THEY ARE POSITIVE OR NEGATIVE
 
     elif args.model == "4STACK_CONT_ATARI":
-        negset = NegContFourStack.NegContFourStack(root_dir= root_dir + args.expname, transform=transform)
-        posset = PosContFourStack.PosContFourStack(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma)
+        negset = NegContFourStack.NegContFourStack(root_dir=root_dir + args.expname, transform=transform)
+        posset = PosContFourStack.PosContFourStack(root_dir=root_dir + args.expname, transform=transform,
+                                                   sample_next=args.sgamma)
         if args.arch == 'resnet':
             print("using resnet")
-            #encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
             encodernet = TEncoder(channel_in=4, ch=64, z=512).to(device)
         else:
             encodernet = TEncoder(channel_in=4, ch=32, z=512).to(device)
         print(root_dir, args.expname)
         div_val = 255.0
 
-    elif args.model == "1CHANLSTM_CONT_ATARI":
-        negset = NegContLSTM.NegContLSTM(root_dir= root_dir + args.expname, transform=transform, max_seq_length=args.maxseq)
-        posset = PosContLSTM.PosContLSTM(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma, max_seq_length=args.maxseq)
+    elif args.model == "1CHAN_CONT_ATARI":
+        negset = NegContFourStack.NegContFourStack(root_dir=root_dir + args.expname, transform=transform)
+        posset = PosContFourStack.PosContFourStack(root_dir=root_dir + args.expname, transform=transform,
+                                                   sample_next=args.sgamma)
         if args.arch == 'resnet':
             print("using resnet")
-            #encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TEncoder(channel_in=1, ch=64, z=512).to(device)
+        else:
+            encodernet = TEncoder(channel_in=1, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
+    elif args.model == "FPV_BEV_CARLA":
+        trainset = CarlaFPVBEV.CarlaFPVBEV(root_dir=root_dir + args.expname, transform=transform)
+        #this will give me a tuple: (fpv_batch, bev_batch), each of the batches are of size batch_size
+
+        #CHEN
+        #resnet150
+        fpvencoder = ResNet(512).to(device)
+        
+        #vaeencoder
+        bevencoder = BEVEncoder(channel_in=1, ch=32, h_dim=1024, z=512).to(device)
+
+        print(root_dir, args.expname)
+        div_val = 255.0
+
+
+    elif args.model == "1CHANLSTM_CONT_ATARI":
+        negset = NegContLSTM.NegContLSTM(root_dir=root_dir + args.expname, transform=transform,
+                                         max_seq_length=args.maxseq)
+        posset = PosContLSTM.PosContLSTM(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma,
+                                         max_seq_length=args.maxseq)
+        if args.arch == 'resnet':
+            print("using resnet")
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
             encoder = TEncoder(channel_in=1, ch=64, z=512).to(device)
         else:
             encoder = TEncoder(channel_in=1, ch=32, z=512).to(device)
-        encodernet = StateLSTM(latent_size=512, hidden_size=512, batch_size=args.train_batch_size, num_layers=1, encoder=encoder)
-        
+        encodernet = StateLSTM(latent_size=512, hidden_size=512, num_layers=1,
+                               encoder=encoder)
+
         print(root_dir, args.expname)
         div_val = 255.0
 
 
     elif args.model == "DUAL_4STACK_CONT_ATARI":
-        negset = ContFourStack.ContFourStack(root_dir= root_dir + args.texpname, transform=transform)
-        #posset = ContFourStack.ContFourStack(root_dir=root_dir + args.expname, transform=transform, max_len=50000)
+        negset = ContFourStack.ContFourStack(root_dir=root_dir + args.texpname, transform=transform)
+        # posset = ContFourStack.ContFourStack(root_dir=root_dir + args.expname, transform=transform, max_len=50000)
         posset = ContFourStack.ContFourStack(root_dir=root_dir + args.expname, transform=transform)
         print(root_dir, args.expname)
         div_val = 255.0
-        teachernet = TEncoder(channel_in=4, ch=32, z=512).to(device)
+        print("hahaha")
+        teachernet = TEncoder(channel_in=4, ch=64, z=512).to(device)
 
-        #load teacher_encoder ckpt        
-        #ModelCatalog.register_custom_model("model", SingleAtariModel)
-        #load_ckpt = Policy.from_checkpoint("/lab/kiran/logs/rllib/atari/4stack/1.a_BeamRiderNoFrameskip-v4_singlegame_full_e2e_PolicyNotLoaded_0.0_20000_2000_4stack/23_07_04_18_11_34/checkpoint").get_weights()
+        # load teacher_encoder ckpt
+        # ModelCatalog.register_custom_model("model", SingleAtariModel)
+        # load_ckpt = Policy.from_checkpoint("/lab/kiran/logs/rllib/atari/4stack/1.a_BeamRiderNoFrameskip-v4_singlegame_full_e2e_PolicyNotLoaded_0.0_20000_2000_4stack/23_07_04_18_11_34/checkpoint").get_weights()
 
-        #transfer weights to prtr model
+        # transfer weights to prtr model
         if args.tmodel_path == "":
-            model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(args.kl_weight) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt"
+            model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (
+                args.arch).upper() + "_" + str(args.kl_weight) + "_" + str(args.sgamma) + "_" + str(
+                args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt"
         else:
             model_path = args.save_dir + args.tmodel_path
         checkpoint = torch.load(model_path, map_location="cpu")
         teachernet.load_state_dict(checkpoint['model_state_dict'])
-        
-        #freeze teachers model
+
+        # freeze teachers model
         teachernet.eval()
         for param in teachernet.parameters():
             param.requires_grad = False
 
-        #initialize student model
-        encodernet = Encoder(channel_in=4, ch=32, z=512).to(device)
+        print("bababa")
+        # initialize student model
+        encodernet = Encoder(channel_in=4, ch=64, z=512).to(device)
         checkpoint['model_state_dict']['adapter.weight'] = torch.from_numpy(np.ones((512, 512, 1, 1)))
         checkpoint['model_state_dict']['adapter.bias'] = torch.from_numpy(np.zeros(512))
         encodernet.load_state_dict(checkpoint['model_state_dict'])
+        print("ggggggg")
         print(root_dir, args.expname)
 
         encodernet.encoder.eval()
         for param in encodernet.encoder.parameters():
             param.requires_grad = False
-        
+
         encodernet.conv_mu.eval()
         for param in encodernet.conv_mu.parameters():
             param.requires_grad = False
         div_val = 255.0
 
-    elif args.model == "CONTLSTM_ATARI":
-        trainset = ContLstmAtari.ContLstmAtari(root_dir='/home6/kiran/datasets/', transform=transform)
-        encodernet = VAE(channel_in=4, ch=32, z=512).to(device)
-        #encodernet = Encoder()
-        div_val = 255.0
+    elif args.model == "3CHANLSTM_CONT_BEOGYM":
+        negset = NegContThreeLSTM.NegContThreeLSTM(root_dir=root_dir + args.expname, transform=transform,
+                                         max_seq_length=args.maxseq)
+        posset = PosContThreeLSTM.PosContThreeLSTM(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma,
+                                         max_seq_length=args.maxseq)
+        if args.arch == 'resnet':
+            print("using resnet")
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encoder = TEncoder(channel_in=3, ch=64, z=512).to(device)
+        else:
+            encoder = TEncoder(channel_in=3, ch=32, z=512).to(device)
+        encodernet = StateLSTM(latent_size=512, hidden_size=512, num_layers=1,
+                               encoder=encoder)
 
-    elif args.model == "CONTLSTM_BEOGYM":
-        trainset = ContLstmBeogym.ContLstmBeogym(root_dir='/home6/kiran/datasets/', transform=transform)
-        encodernet = VAE(channel_in=4, ch=32, z=512).to(device)
-        #encodernet = Encoder()
+        print(root_dir, args.expname)
         div_val = 255.0
 
 
     else:
-        raise("Not Implemented Error")
+        raise ("Not Implemented Error")
 
     # %%
     # get a test image batch from the testloader to visualise the reconstruction quality
-    #dataiter = iter(testloader)
-    #test_images, _ = dataiter.next()
+    # dataiter = iter(testloader)
+    # test_images, _ = dataiter.next()
 
     if is_train and 'CONT' in args.model:
-        negloader, posloader = utils.get_data_STL10(negset, args.train_batch_size, transform, posset, args.sample_batch_size)
+        negloader, posloader = utils.get_data_STL10(negset, args.train_batch_size, transform, posset,
+                                                    args.sample_batch_size)
         print("contlksjflkjsdfj")
     elif is_train:
         trainloader, _ = utils.get_data_STL10(trainset, args.train_batch_size, transform)
     elif is_train == False and 'LSTM' in args.model:
-        trainloader, _ = utils.get_data_STL10(trainset, 2, transform)
+        trainloader, _ = utils.get_data_STL10(trainset, 1, transform)
         args.load_checkpoint = True
     else:
         trainloader, _ = utils.get_data_STL10(trainset, 20, transform)
         args.load_checkpoint = True
+    
+    
     # setup optimizer
-    optimizer = optim.Adam(encodernet.parameters(), lr=args.lr, betas=(0.5, 0.999))
+    if 'FPV' in args.model:
+        optimizer = optim.Adam(list(fpvencoder.parameters()) + list(bevencoder.parameters()), lr=args.lr, betas=(0.5, 0.999))
+    else:
+        optimizer = optim.Adam(encodernet.parameters(), lr=args.lr, betas=(0.5, 0.999))
     # Loss function
     loss_log = []
 
@@ -215,29 +269,38 @@ def initialize(is_train):
         else:
             auxval = args.temperature
         if args.model_path == "":
-            model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt"
+            model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (
+                args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(
+                args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt"
         else:
             model_path = args.save_dir + args.model_path
+        
         print(model_path)
         checkpoint = torch.load(model_path, map_location="cpu")
         print("Checkpoint loaded")
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        encodernet.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])        
         start_epoch = checkpoint["epoch"]
         print("Epoch starting at ", start_epoch)
         loss_log = checkpoint["loss_log"]
+        
+        if 'FPV' in args.model:
+            fpvencoder.load_state_dict(checkpoint['fpv_state_dict'])
+            bevencoder.load_state_dict(checkpoint['bev_state_dict'])
+        else:
+            encodernet.load_state_dict(checkpoint['model_state_dict'])
     else:
         # If checkpoint does exist raise an error to prevent accidental overwriting
-        #if os.path.isfile(args.save_dir + args.model + ".pt"):
+        # if os.path.isfile(args.save_dir + args.model + ".pt"):
         #    raise ValueError("Warning Checkpoint exists. Overwriting")
-        #else:
+        # else:
         #    print("Starting from scratch")
         start_epoch = 0
 
-    
     if 'DUAL' in args.model:
         return encodernet, teachernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
     elif 'CONT' in args.model:
         return encodernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
+    elif 'BEV' in args.model:
+        return fpvencoder, bevencoder, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir    
     else:
         return encodernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir

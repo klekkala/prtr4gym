@@ -9,6 +9,11 @@ from ray.rllib.policy.policy import Policy
 from models.atarimodels import SingleAtariModel
 from IPython import embed
 import random
+from arguments import get_args
+
+args = get_args()
+
+
 
 #backbone from the 
 def eval_adapter(tmodel_path, model_path, env_name, backbone):
@@ -55,7 +60,7 @@ def eval_adapter(tmodel_path, model_path, env_name, backbone):
             break
   
     
-    f = open('results.txt', 'a')
+    f = open(args.texpname + '_' + args.expname + '.txt', 'a')
     f.write(str(total) + ', ')
     f.close()
     

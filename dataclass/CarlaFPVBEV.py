@@ -1,29 +1,32 @@
 from torch.utils.data import Dataset, DataLoader
+from dataclass.BaseDataset import BaseDataset
 from collections import defaultdict
 from PIL import Image
+import numpy as np
 import os
+import bisect
+from IPython import embed
 
-class Attari(Dataset):
+class CarlaFPVBEV(BaseDataset):
     def __init__(self, root_dir, transform=None):
-        self.root_dir = root_dir
-        self.transform = transform
-        self.image_dict = defaultdict()
+        super().__init__(root_dir, transform, action=False, reward=False, terminal=False, goal=False)
 
-        for name in os.listdir(self.root_dir):
-            filename, ext = os.path.splitext(name)
-            self.image_dict[filename] = name
-        self.lines= len(self.image_dict)
-
-    def __len__(self):
-        return self.lines-1
 
     def __getitem__(self, item):
+        file_ind = bisect.bisect_right(self.each_len, item)
+        if file_ind == 0:
+            im_ind = item
+        else:
+            im_ind = item - self.each_len[file_ind-1]
+        
+        img = self.obs_nps[file_ind][im_ind]
+        target = np.expand_dims(self.bev_nps[file_ind][im_ind][:, :, 0], axis=-1)
+    
+        img = np.moveaxis(img, -1, 0)
+        target = np.moveaxis(target, -1, 0)
 
-        img, target = Image.open(self.root_dir+"/"+self.image_dict[str(item)]),  Image.open(self.root_dir+"/"+self.image_dict[str(item)])
-
-        if self.transform is not None:
-            img = self.transform(img)
-            target = self.transform(target)
+        #if self.transform is not None:
+        #    img = self.transform(img)
+        #    target = self.transform(target)
 
         return img, target
-
