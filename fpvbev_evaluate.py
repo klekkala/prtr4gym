@@ -61,7 +61,7 @@ class Encoder(nn.Module):
         # read anchor images and convert to latent representations
         self.anchors_lr = []
         self.anchors = []
-        for i in range(1, 101):
+        for i in range(100):
             im = cv2.imread(os.path.join("/lab/kiran/img2cmd/test", str(i)+'00_.jpg'), cv2.IMREAD_GRAYSCALE)
             self.anchors.append(im)
             with torch.no_grad():
@@ -99,22 +99,29 @@ class Encoder(nn.Module):
 def readSim():
     cnt = 0
 
-    for i in range(1, 101):
+    for i in range(100):
         rgb = cv2.imread(os.path.join("/lab/kiran/img2cmd/test", str(i) + '00.jpg'))
         rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
         RGB_img = cv2.resize(rgb, (84, 84), interpolation=cv2.INTER_LINEAR)
         id = encoder(RGB_img)
-        if id+1 == i:
+        if id == i:
             cnt += 1
-        print(str(i) + '00.jpg', id.cpu().numpy()+1)
+        print(str(i) + '00.jpg', id.cpu().numpy())
 
 
     print("accuracy:", cnt / 100)
 
 if __name__ == "__main__":
     root_dir = "test"
-    encoder = Encoder("/lab/kiran/ckpts/pretrained/carla/FPV_BEV_CARLA_RANDOM_FPVBEV_CARLA_STANDARD_0.1_0.01_128_512.pt")
+    '''encoder = Encoder("/lab/kiran/ckpts/pretrained/carla/FPV_BEV_CARLA_RANDOM_FPVBEV_CARLA_STANDARD_0.1_0.01_128_512.pt")
     readSim()
-    encoder = Encoder("/lab/kiran/ckpts/pretrained/carla/FPV_BEV_CARLA_RANDOM_FPVBEV_CARLA_STANDARD_0.01_0.01_128_512.pt")
+    encoder = Encoder("/lab/kiran/ckpts/pretrained/carla/FPV_BEV_CARLA_RANDOM_FPVBEV_CARLA_STANDARD_0.25_0.01_128_512.pt")
     readSim()
-
+    encoder = Encoder("/lab/kiran/ckpts/pretrained/carla/FPV_BEV_CARLA_RANDOM_FPVBEV_CARLA_STANDARD_0.5_0.01_128_512.pt")
+    readSim()
+    encoder = Encoder("/lab/kiran/ckpts/pretrained/carla/FPV_BEV_CARLA_RANDOM_FPVBEV_CARLA_STANDARD_0.75_0.01_128_512.pt")
+    readSim()'''
+    #encoder = Encoder("/lab/kiran/ckpts/pretrained/carla/FPV_BEV_CARLA_NEW_STANDARD_0.1_0.01_128_512.pt")
+    #readSim()
+    encoder = Encoder("/lab/kiran/ckpts/pretrained/carla/FPV_BEV_CARLA_RANDOM_BEV_CARLA_STANDARD_0.1_0.01_128_512.pt")
+    readSim()

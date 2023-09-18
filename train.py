@@ -31,7 +31,21 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import cv2
 args = get_args()
 
+game_ckpts = {
+        'AirRaidNoFrameskip-v4': '/lab/kiran/logs/rllib/atari/4stack/1.a_AirRaidNoFrameskip-v4_singlegame_full_4STACK_CONT_ATARI_EXPERT_4STACK_TRAIN_RESNET_0.1_0.01_512_512.pt_PolicyNotLoaded_0.0_20000_2000_4stack/23_08_06_01_30_05/checkpoint/',
+        'CarnivalNoFrameskip-v4': '/lab/kiran/logs/rllib/atari/4stack/1.a_CarnivalNoFrameskip-v4_singlegame_full_4STACK_CONT_ATARI_EXPERT_4STACK_TRAIN_RESNET_0.1_0.01_512_512.pt_PolicyNotLoaded_0.0_20000_2000_4stack/23_08_07_18_30_07/checkpoint/',
+        'DemonAttackNoFrameskip-v4': '/lab/kiran/logs/rllib/atari/4stack/1.a_DemonAttackNoFrameskip-v4_singlegame_full_4STACK_CONT_ATARI_EXPERT_4STACK_TRAIN_RESNET_0.1_0.01_512_512.pt_PolicyNotLoaded_0.0_20000_2000_4stack/23_08_06_12_34_09/checkpoint/',
+        'NameThisGameNoFrameskip-v4': '/lab/kiran/logs/rllib/atari/4stack/1.a_NameThisGameNoFrameskip-v4_singlegame_full_4STACK_CONT_ATARI_EXPERT_4STACK_TRAIN_RESNET_0.1_0.01_512_512.pt_PolicyNotLoaded_0.0_20000_2000_4stack/23_08_06_09_14_07/checkpoint/',
+        'SpaceInvadersNoFrameskip-v4': '/lab/kiran/logs/rllib/atari/4stack/1.a_SpaceInvadersNoFrameskip-v4_singlegame_full_4STACK_CONT_ATARI_EXPERT_4STACK_TRAIN_RESNET_0.1_0.01_512_512.pt_PolicyNotLoaded_0.0_20000_2000_4stack/23_08_06_13_44_50/checkpoint/',
+        }
 
+game_trans = {
+    'trained_4stack_airraid': 'AirRaidNoFrameskip-v4',
+    'trained_4stack_carnival': 'CarnivalNoFrameskip-v4',
+    'trained_4stack_demonattack': 'DemonAttackNoFrameskip-v4',
+    'trained_4stack_namethisgame': 'NameThisGameNoFrameskip-v4',
+    'trained_4stack_spaceinvaders': 'SpaceInvadersNoFrameskip-v4'
+        }
 def log_write(encodernet, mode):
     f = open(args.texpname + '_' + args.expname + '.txt', mode)
     if mode == 'w':
@@ -43,9 +57,8 @@ def log_write(encodernet, mode):
     res = []
     for _ in range(args.nrounds):
         reward_val = eval_adapter(
-            '/lab/kiran/logs/rllib/atari/4stack/1.a_AirRaidNoFrameskip-v4_singlegame_full_4STACK_CONT_ATARI_EXPERT_4STACK_TRAIN_RESNET_0.1_0.01_512_512.pt_PolicyNotLoaded_0.0_20000_2000_4stack/23_08_06_01_30_05/checkpoint/',
-            '/lab/kiran/logs/rllib/atari/4stack/1.a_NameThisGameNoFrameskip-v4_singlegame_full_4STACK_CONT_ATARI_EXPERT_4STACK_TRAIN_RESNET_0.1_0.01_512_512.pt_PolicyNotLoaded_0.0_20000_2000_4stack/23_08_06_09_14_07/checkpoint/',
-            "NameThisGameNoFrameskip-v4", encodernet)
+            game_ckpts[game_trans[args.texpname]], game_ckpts[game_trans[args.expname]],
+                game_trans[args.expname], encodernet)
         res.append(reward_val)
     average = sum(res) / len(res)
     print(average)
@@ -76,11 +89,13 @@ if 'CONT' in args.model:
     loss_func = losses.ContrastiveLoss()
 
 elif 'FPV' in args.model:
-    loss_func = utils.clip_loss
-
+    #loss_func = utils.clip_loss
+    loss_func = losses.ContrastiveLoss()
 elif 'LSTM' in args.model and 'CARLA' in args.model:
     #loss_func = nn.MSELoss()
     loss_func = utils.gmm_loss
+elif 'VIP' in args.model:
+    loss_func = utils.vip_loss
 else:
     loss_func = utils.vae_loss
 
@@ -188,6 +203,10 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
                     query_imgs = torch.unsqueeze(torch.squeeze(query_imgs), axis=1)
                     pos_imgs = torch.unsqueeze(torch.squeeze(pos_imgs), axis=1)
 
+                elif '3CHAN_CONT' in args.model:
+                    query_imgs = torch.squeeze(query_imgs)
+                    pos_imgs = torch.squeeze(pos_imgs)
+
                 else:
                     query_imgs = torch.squeeze(query_imgs)
                     pos_imgs = torch.squeeze(pos_imgs)
@@ -213,11 +232,17 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
         elif 'LSTM' in args.model:
             # CHEN
             (img, target, action) = negdata
-            image_reshape_val = img.to(device) / div_val
+            if len(action[0]) <= 1:
+                continue
+            ids, sim, image_embed = encodernet.encoder(img[0])
+            source = encodernet.encoder.anchors[ids]
+            source = torch.tensor(source)
+
+            image_reshape_val = source.to(device) / div_val
             targ = target.to(device) / div_val
             action = action.to(device)
             z_gt, _, _ = encodernet.encode(targ)
-            z_prev, _, _ = encodernet.encode(image_reshape_val)
+            z_prev, _, _ = encodernet.encode(image_reshape_val.unsqueeze(0).unsqueeze(2))
 
             #mask = random.sample(range(0, len(z_prev[0])), int(len(z_prev[0]) / 2))
             #for z in z_prev:
@@ -230,21 +255,71 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
             mus, sigmas, logpi = encodernet(action, z_prev)
             loss = loss_func(z_gt, mus, sigmas, logpi) / z_gt.shape[-1]
 
+        elif "FPV_RECONBEV_CARLA" in args.model:
+            (img, target) = negdata
+            image_val = img.to(device) / div_val
+            targ = target.to(device) / div_val
+
+            image_embed = fpvencoder(image_val)
+            #_, targ_embed_mu, targ_embed_logvar = bevencoder(targ)
+            #targ_embed = targ_embed_mu
+            #torch.concat((targ_embed_mu, targ_embed_logvar), axis=-1)
+            #embedclasses = torch.arange(start=0, end=img.shape[0])
+
+            # in the constrastive case, we get a batch of pair of embeddings and wheather they are positive or negative
+            #loss = loss_func(torch.cat([image_embed, targ_embed], axis=0), torch.cat([embedclasses, embedclasses], axis=0))
+            #loss = loss_func(image_embed, targ_embed, args.temperature, embedclasses)
+            
+            # reconstruct from fpv embedding
+            z = bevencoder.reparameterize(image_embed[:, :32], image_embed[:, 32:])
+            recon_data = bevencoder.recon(z)
+            #logvar = torch.zeros(image_embed.shape).to(device)
+
+            loss = utils.vae_loss(recon_data, targ, image_embed[:, :32], image_embed[:, 32:], args.kl_weight)
+
+            # regression
+#            loss = F.mse_loss(image_embed, targ_embed)
+
+
         elif 'FPV' in args.model:
             (img, target) = negdata
             image_val = img.to(device) / div_val
             targ = target.to(device) / div_val
 
             image_embed = fpvencoder(image_val)
-            targ_embed = bevencoder(targ)
-            
-
+            _, targ_embed_mu, targ_embed_logvar = bevencoder(targ)
+            targ_embed = targ_embed_mu
+            #torch.concat((targ_embed_mu, targ_embed_logvar), axis=-1)
             embedclasses = torch.arange(start=0, end=img.shape[0])
 
             # in the constrastive case, we get a batch of pair of embeddings and wheather they are positive or negative
             #loss = loss_func(torch.cat([image_embed, targ_embed], axis=0), torch.cat([embedclasses, embedclasses], axis=0))
             loss = loss_func(image_embed, targ_embed, args.temperature, embedclasses)
+            
+            # regression
+#            loss = F.mse_loss(image_embed, targ_embed)
+        
+        elif 'VIP' in args.model:
+            start_imgs, mid_imgs, midplus_imgs, end_imgs = torch.split(negdata, 1, dim=1)
+            
+            start_imgs = torch.squeeze(start_imgs.to(device)/div_val)
+            mid_imgs = torch.squeeze(mid_imgs.to(device)/div_val)
+            midplus_imgs = torch.squeeze(midplus_imgs.to(device)/div_val)
+            end_imgs = torch.squeeze(end_imgs.to(device)/div_val)
+            
+            if len(start_imgs.shape) == 3:
+                start_imgs = torch.unsqueeze(start_imgs, axis=1)
+                mid_imgs = torch.unsqueeze(mid_imgs, axis=1)
+                midplus_imgs = torch.unsqueeze(midplus_imgs, axis=1)
+                end_imgs = torch.unsqueeze(end_imgs, axis=1)
 
+            start_embed = encodernet(start_imgs)
+            mid_embed = encodernet(mid_imgs)
+            midplus_embed = encodernet(midplus_imgs)
+            end_embed = encodernet(end_imgs)
+
+            loss = loss_func(start_embed, mid_embed, midplus_embed, end_embed)
+        
         else:
             (img, target) = negdata
             image_val = img.to(device) / div_val
@@ -281,21 +356,23 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
 
     # continue
     # Save a checkpoint with a specific filename
-    
-    if 'FPV' in args.model:
-        save_dict = {
-            'epoch': epoch,
-            'loss_log': loss_log,
-            'fpv_state_dict': fpvencoder.state_dict(),
-            'bev_state_dict': bevencoder.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict()
-        }
-    else:
-        save_dict = {
-            'epoch': epoch,
-            'loss_log': loss_log,
-            'model_state_dict': encodernet.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict()
-        }    
-    torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt")
+
+    if epoch % (args.nepoch/20) == 0:
+        print("saving checkpoint")
+        if 'FPV' in args.model:
+            save_dict = {
+                'epoch': epoch,
+                'loss_log': loss_log,
+                'fpv_state_dict': fpvencoder.state_dict(),
+                'bev_state_dict': bevencoder.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict()
+            }
+        else:
+            save_dict = {
+                'epoch': epoch,
+                'loss_log': loss_log,
+                'model_state_dict': encodernet.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict()
+            }    
+        torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt")
 

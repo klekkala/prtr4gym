@@ -1,14 +1,91 @@
-
+from models.atari_vae import VAEBEV
+from torchvision.models import resnet50, ResNet50_Weights
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as f
 from IPython import embed
-
+import cv2
+import os
+import numpy as np
 GPU_indx = 0
 device = torch.device(GPU_indx if torch.cuda.is_available() else "cpu")
 
 
+
+class ResNet(nn.Module):
+    def __init__(self, embed_size=512):
+        super().__init__()
+        self.resnet = resnet50(weights=ResNet50_Weights.DEFAULT)
+        num_ftrs = self.resnet.fc.in_features
+        self.resnet.fc = nn.Linear(num_ftrs, embed_size)
+
+
+    def forward(self, image):
+        out = self.resnet(image)
+        return out
+
+
+class Encoder(nn.Module):
+    def __init__(self, encoder_path, classification=False):
+        super().__init__()
+        self.fpvencoder = ResNet(32).to(device)
+
+        # vaeencoder
+        self.bevencoder = VAEBEV(channel_in=1, ch=16, z=32).to(device)
+        vae_model_path = "/lab/kiran/ckpts/pretrained/carla/BEV_VAE_CARLA_RANDOM_BEV_CARLA_STANDARD_0.01_0.01_256_64.pt"
+        vae_ckpt = torch.load(vae_model_path, map_location="cpu")
+        self.bevencoder.load_state_dict(vae_ckpt['model_state_dict'])
+        self.bevencoder.eval()
+        for param in self.bevencoder.parameters():
+            param.requires_grad = False
+
+        # load models
+        checkpoint = torch.load(encoder_path, map_location="cpu")
+        print(checkpoint['epoch'])
+        self.fpvencoder.load_state_dict(checkpoint['fpv_state_dict'])
+        self.fpvencoder.eval()
+        for param in self.fpvencoder.parameters():
+            param.requires_grad = False
+
+
+        # read anchor images and convert to latent representations
+        self.anchors_lr = []
+        self.anchors = []
+        self.label = []
+        if not classification:
+            root = "/home/carla/img2cmd/test"
+        else:
+            root = "/lab/kiran/img2cmd/anchor"
+
+        for root, subdirs, files in os.walk(root):
+            if files:
+                for f in files:
+                    if '.jpg' in f:
+                        im = cv2.imread(os.path.join(root, f), cv2.IMREAD_GRAYSCALE)
+                        self.anchors.append(im)
+                        with torch.no_grad():
+                            im = np.expand_dims(im, axis=(0, 1))
+                            im = torch.tensor(im).to(device) / 255.0
+                            _, embed_mu, embed_logvar = self.bevencoder(im)
+                            embed = embed_mu.cpu().numpy()[0]
+                            self.anchors_lr.append(embed)
+        self.anchors = np.array(self.anchors)
+        self.anchors_lr = np.array(self.anchors_lr)
+        self.anchors_lr = torch.tensor(self.anchors_lr).to(device)
+
+
+    def forward(self, img):
+        image_val = img.to(device) / 255.0
+        with torch.no_grad():
+            _, image_embed, _ = self.bevencoder(image_val)
+        # compare embeddings
+        #sims = nn.functional.cosine_similarity(image_embed, self.anchors_lr)
+        sims = f.normalize(image_embed) @ f.normalize(self.anchors_lr).t()
+
+        ys = torch.argmax(sims, axis=1)
+
+        return ys.cpu().numpy(), torch.max(sims, axis=1), image_embed
 
 
 class StateLSTM(nn.Module):
@@ -48,6 +125,8 @@ class StateActionLSTM(StateLSTM):
         for param in self.vae.parameters():
             param.requires_grad = False
         self.lstm = nn.LSTM(latent_size + action_size, hidden_size, num_layers, batch_first=True)
+        self.encoder = Encoder("/lab/kiran/ckpts/pretrained/carla/FPV_BEV_CARLA_RANDOM_BEV_CARLA_STANDARD_0.1_0.01_128_512.pt", True)
+
 
     def encode(self, image):
         x = torch.reshape(image, (-1,) + image.shape[-3:])

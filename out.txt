@@ -1,0 +1,63 @@
+True
+cuda:0
+[]
+[]
+[]
+['limit.npy', 'terminal.npy', 'observation.npy', 'action.npy', 'goal.npy', 'id_dict.npy', 'episode.npy', 'reward.npy']
+/dev/shm/expert_3chan_beogym/expert_3chan_unionsquare/5/50
+[]
+[]
+['limit.npy', 'terminal.npy', 'observation.npy', 'action.npy', 'goal.npy', 'id_dict.npy', 'episode.npy', 'reward.npy']
+/dev/shm/expert_3chan_beogym/expert_3chan_hudsonriver/5/50
+[]
+[]
+['limit.npy', 'terminal.npy', 'observation.npy', 'action.npy', 'goal.npy', 'id_dict.npy', 'episode.npy', 'reward.npy']
+/dev/shm/expert_3chan_beogym/expert_3chan_alleghany/5/50
+[]
+[]
+['limit.npy', 'terminal.npy', 'observation.npy', 'action.npy', 'goal.npy', 'id_dict.npy', 'episode.npy', 'reward.npy']
+/dev/shm/expert_3chan_beogym/expert_3chan_wallstreet/5/50
+[]
+[]
+['limit.npy', 'terminal.npy', 'observation.npy', 'action.npy', 'goal.npy', 'id_dict.npy', 'episode.npy', 'reward.npy']
+/dev/shm/expert_3chan_beogym/expert_3chan_southshore/5/50
+[]
+[]
+['limit.npy', 'terminal.npy', 'observation.npy', 'action.npy', 'goal.npy', 'id_dict.npy', 'episode.npy', 'reward.npy']
+/dev/shm/expert_3chan_beogym/expert_3chan_cmu/5/50
+each_len [1000000, 2000000, 3000000, 4000000, 5000000, 6000000]
+blah blah
+[]
+[]
+[]
+['limit.npy', 'terminal.npy', 'observation.npy', 'action.npy', 'goal.npy', 'id_dict.npy', 'episode.npy', 'reward.npy']
+/dev/shm/expert_3chan_beogym/expert_3chan_unionsquare/5/50
+[]
+[]
+['limit.npy', 'terminal.npy', 'observation.npy', 'action.npy', 'goal.npy', 'id_dict.npy', 'episode.npy', 'reward.npy']
+/dev/shm/expert_3chan_beogym/expert_3chan_hudsonriver/5/50
+[]
+[]
+['limit.npy', 'terminal.npy', 'observation.npy', 'action.npy', 'goal.npy', 'id_dict.npy', 'episode.npy', 'reward.npy']
+/dev/shm/expert_3chan_beogym/expert_3chan_alleghany/5/50
+[]
+[]
+['limit.npy', 'terminal.npy', 'observation.npy', 'action.npy', 'goal.npy', 'id_dict.npy', 'episode.npy', 'reward.npy']
+/dev/shm/expert_3chan_beogym/expert_3chan_wallstreet/5/50
+[]
+[]
+['limit.npy', 'terminal.npy', 'observation.npy', 'action.npy', 'goal.npy', 'id_dict.npy', 'episode.npy', 'reward.npy']
+/dev/shm/expert_3chan_beogym/expert_3chan_southshore/5/50
+[]
+[]
+['limit.npy', 'terminal.npy', 'observation.npy', 'action.npy', 'goal.npy', 'id_dict.npy', 'episode.npy', 'reward.npy']
+/dev/shm/expert_3chan_beogym/expert_3chan_cmu/5/50
+each_len [1000000, 2000000, 3000000, 4000000, 5000000, 6000000]
+blah blah
+/dev/shm/expert_3chan_beogym
+using resnet
+/dev/shm/ expert_3chan_beogym
+Loading trainset...
+Loading testset...
+Done!
+contlksjflkjsdfj

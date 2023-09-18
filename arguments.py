@@ -14,7 +14,7 @@ def get_args():
     )
     parser.add_argument(
         "--model",
-        choices=["FPV_BEV_CARLA", "BEV_VAE_CARLA", "BEV_LSTM_CARLA", "4STACK_VAE_ATARI", "3CHANRGB_VAE_ATARI101", "1CHAN_VAE_ATARI101", "3CHAN_VAE_ATARI", "1CHAN_VAE_ATARI", "1CHANLSTM_CONT_ATARI", "4STACK_CONT_ATARI", "DUAL_4STACK_CONT_ATARI", "3CHANLSTM_CONT_BEOGYM", "1CHAN_CONT_ATARI"],
+        choices=["FPV_RECONBEV_CARLA", "FPV_BEV_CARLA", "BEV_VAE_CARLA", "BEV_LSTM_CARLA", "4STACK_VAE_ATARI", "3CHANRGB_VAE_ATARI101", "1CHAN_VAE_ATARI101", "3CHAN_VAE_ATARI", "1CHAN_VAE_ATARI", "1CHANLSTM_CONT_ATARI", "4STACK_CONT_ATARI", "DUAL_4STACK_CONT_ATARI", "3CHANLSTM_CONT_BEOGYM", "1CHAN_CONT_ATARI", "3CHAN_CONT_BEOGYM", "3CHAN_VIP_BEOGYM", "1CHAN_VIP_ATARI", "4STACK_VIP_ATARI"],
         default="e2e",
     )
     parser.add_argument(
@@ -44,10 +44,11 @@ def get_args():
         "--maxseq", type=int, default=7500, help="pretrained results"
     )
     parser.add_argument(
-        "--nepoch", type=int, default=201, help="pretrained results"
+        "--nepoch", type=int, default=200, help="pretrained results"
     )
+    #201 originally
     parser.add_argument(
-        "--nrounds", type=int, default=20, help="GPU ID"
+        "--nrounds", type=int, default=5, help="GPU ID"
     )
     parser.add_argument(
         "--gpu_id", type=int, default=0, help="GPU ID"

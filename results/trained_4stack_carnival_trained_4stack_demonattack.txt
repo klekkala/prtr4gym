@@ -1,0 +1,33 @@
+Before Training
+355.0, 295.0, 175.0, 90.0, 325.0,  Average: 248.0, 
+After Training
+After Training
+280.0, 175.0, 355.0, 130.0, 295.0,  Average: 247.0, 
+After Training
+After Training
+235.0, 235.0, 175.0, 220.0, 325.0,  Average: 238.0, 
+After Training
+After Training
+220.0, 280.0, 190.0, 340.0, 110.0,  Average: 228.0, 
+After Training
+After Training
+80.0, 310.0, 520.0, 130.0, 140.0,  Average: 236.0, 
+After Training
+After Training
+280.0, 140.0, 160.0, 130.0, 680.0,  Average: 278.0, 
+After Training
+After Training
+190.0, 400.0, 70.0, 235.0, 90.0,  Average: 197.0, 
+After Training
+After Training
+205.0, 295.0, 70.0, 355.0, 205.0,  Average: 226.0, 
+After Training
+After Training
+175.0, 110.0, 250.0, 205.0, 420.0,  Average: 232.0, 
+After Training
+After Training
+370.0, 140.0, 175.0, 295.0, 265.0,  Average: 249.0, 
+After Training
+After Training
+280.0, 480.0, 280.0, 220.0, 205.0,  Average: 293.0, 
+After Training

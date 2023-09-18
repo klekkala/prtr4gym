@@ -1,0 +1,14 @@
+Before Training
+4160.0, 5150.0, 1330.0, 7030.0, 4440.0,  Average: 4422.0, 
+After Training
+After Training
+2590.0, 6830.0, 890.0, 3090.0, 4040.0,  Average: 3488.0, 
+After Training
+After Training
+4150.0, 3770.0, 2610.0, 4900.0, 3080.0,  Average: 3702.0, 
+After Training
+After Training
+690.0, 5970.0, 3130.0, 1710.0, 5120.0,  Average: 3324.0, 
+After Training
+After Training
+3230.0, 1770.0, 7090.0, 4640.0, 

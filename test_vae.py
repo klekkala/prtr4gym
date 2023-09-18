@@ -33,37 +33,25 @@ for i, testdata in enumerate(tqdm(testloader, leave=False)):
         #torch.unsqueeze(test_images, 1)
         if 'LSTM' in args.model:
             (img, target, action) = testdata
-            image_reshape_val = img[0].to(device)/div_val
-            targ = target[0].to(device)/div_val
-            action = action[0].to(device)
+            if len(action[0]) <= 1:
+                continue
+            ids, sim, image_embed = encodernet.encoder(img[0])
+            source = encodernet.encoder.anchors[ids]
+            source = torch.tensor(source)
 
+            image_reshape_val = source.to(device) / div_val
+            targ = target.to(device) / div_val
+            action = action.to(device)
             z_gt, _, _ = encodernet.encode(targ)
-            z_prev, _, _ = encodernet.encode(image_reshape_val)
-            #mask = random.sample(range(0, len(z_prev[0])), int(len(z_prev[0])/2))
-            #for z in z_prev:
-            #    z[mask] = torch.zeros(z_prev[0][0].shape).to(device)
-
+            z_prev, _, _ = encodernet.encode(image_reshape_val.unsqueeze(0).unsqueeze(2))
+	
             encodernet.init_hs(1)
+            mus, sigmas, logpi = encodernet(action, z_prev)
+            z_pred = mus[0, :, 0].unsqueeze(0)
+            print(z_gt.shape, z_pred.shape)
             
-            z_pred = []
-            for i in range(len(action)):
-                if i < 10:
-                    out = encodernet(action[i].reshape((1, 1, -1)), torch.unsqueeze(z_prev[i], dim=0))
-                    z_pred.append(out[0][0][0][0].unsqueeze(0).cpu().numpy())
-                else:
-                    out = encodernet(torch.tensor([1, 0]).reshape((1, 1, -1)).to(device), torch.unsqueeze(torch.tensor(z_pred[-1]).to(device),dim=0))
-                    z_pred.append(out[0][0][0][0].unsqueeze(0).cpu().numpy())
-            z_pred = torch.tensor(z_pred).to(device)
-            test_images = encodernet.decode(z_gt).reshape((-1,) + img.shape[2:])
-            #test_images = targ.reshape((-1,) + img.shape[2:])
-            recon_data = encodernet.decode(z_pred).reshape((-1,) + img.shape[2:])
-            print(test_images.shape, recon_data.shape)
-            #for z in z_pred:
-            #    z[mask] = torch.zeros(z_pred[0][0].shape).to(device)
-            #recon_data_broken = encodernet.decode(z_pred).reshape((-1,) + img.shape[2:])
-
-
-
+            test_images = encodernet.decode(z_gt).reshape((-1,) + target.shape[2:])
+            recon_data = encodernet.decode(z_pred).reshape((-1,) + target.shape[2:])
         else:
             (test_images, target) = testdata
             test_images /= div_val

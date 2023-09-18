@@ -9,8 +9,8 @@ from IPython import embed
 import torch
 
 class PosContFourStack(BaseDataset):
-    def __init__(self, root_dir, sample_next, transform=None):
-        super().__init__(root_dir, transform, action=True, value=True, reward=True, episode=True, terminal=True, goal=False)
+    def __init__(self, root_dir, sample_next, transform=None, value=True, episode=True, goal=False):
+        super().__init__(root_dir, transform, action=True, value=value, reward=True, episode=episode, terminal=True, goal=goal)
         #self.value_thresh = value_thresh
         print(root_dir)
         self.sample_next = sample_next
@@ -45,10 +45,7 @@ class PosContFourStack(BaseDataset):
         #episode = [self.episode_nps[file_ind][im_ind].astype(np.int32)]
 
 
-        if len(self.obs_nps[file_ind][im_ind].shape) == 3:
-            img = [self.obs_nps[file_ind][im_ind].astype(np.float32), self.obs_nps[file_ind][im_ind + deltat].astype(np.float32)]
-        else:
-            img = [np.expand_dims(self.obs_nps[file_ind][im_ind].astype(np.float32), axis=0), np.expand_dims(self.obs_nps[file_ind][im_ind + deltat].astype(np.float32), axis=0)]
+        img = [np.expand_dims(self.obs_nps[file_ind][im_ind].astype(np.float32), axis=0), np.expand_dims(self.obs_nps[file_ind][im_ind + deltat].astype(np.float32), axis=0)]
         
         #return np.stack(img, axis=0), np.stack(value, axis=0), np.stack(episode, axis=0)
         return np.stack(img, axis=0)

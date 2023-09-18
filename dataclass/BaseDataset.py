@@ -27,6 +27,7 @@ class BaseDataset(Dataset):
         exten = ""
         if 'carla' in self.root_dir or 'trained' in self.root_dir or '3chan' in self.root_dir:
             exten = '.npy'
+
         for root, subdirs, files in os.walk(self.root_dir):
             print(files)
             if 'observation' + exten in files:
@@ -57,6 +58,7 @@ class BaseDataset(Dataset):
                     self.id_dict.append(ab[()])
 
             elif 'fpv.npy' in files:
+                print(root)
                 print("lksjdflkjsalk;jflk;sajkal;sjdflk;jf")
                 self.obs_nps.append(np.load(root + '/fpv.npy', mmap_mode='r'))
                 self.bev_nps.append(np.load(root + '/bev.npy', mmap_mode='r'))
@@ -101,5 +103,6 @@ class BaseDataset(Dataset):
         self.lines = self.max_len
         self.num_files = len(self.obs_nps)
 
+        
     def __len__(self):
         return self.lines - 1

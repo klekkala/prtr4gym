@@ -26,8 +26,8 @@ from models.LSTM import MDLSTM as BEVLSTM
 from models.resnet import ResNet
 from models.BEVEncoder import BEVEncoder
 from models.atari_vae import Encoder, TEncoder
-from dataclass import BaseDataset, CarlaBEV, FourStack, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, \
-    PosContFourStack, NegContFourStack, PosContLSTM, NegContLSTM, ContFourStack, PosContThreeLSTM, NegContThreeLSTM, CarlaFPVBEV
+from dataclass import BaseDataset, CarlaBEV, FourStack, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, PosContFourStack, NegContFourStack, PosContLSTM, NegContLSTM, ContFourStack, PosContThreeLSTM, NegContThreeLSTM, CarlaFPVBEV, NegContThreeChan, PosContThreeChan, VIPDataLoad, AtariVIPDataLoad
+from dataclass import FourStackAtariVIPDataLoad
 import utils
 from arguments import get_args
 
@@ -37,8 +37,10 @@ args = get_args()
 def initialize(is_train):
     if 'CARLA' in args.model:
         root_dir = "/home/tmp/kiran/"
-    if 'BEV_LSTM' in args.model:
+    elif 'BEV_LSTM' in args.model:
         root_dir = "/home/tmp/kiran/"
+    elif 'BEOGYM' in args.model or 'ATARI' in args.model:
+        root_dir = "/dev/shm/"
     else:
         root_dir = "/dev/shm/"
     curr_dir = os.getcwd()
@@ -130,19 +132,87 @@ def initialize(is_train):
         print(root_dir, args.expname)
         div_val = 255.0
 
+    elif args.model == "3CHAN_CONT_BEOGYM":
+        negset = NegContThreeChan.NegContThreeChan(root_dir=root_dir + args.expname, transform=transform, goal=True)
+        posset = PosContThreeChan.PosContThreeChan(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma, value=False, episode=True, goal=True)
+
+        if args.arch == 'resnet':
+            print("using resnet")
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TEncoder(channel_in=3, ch=64, z=512).to(device)
+        else:
+            encodernet = TEncoder(channel_in=3, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
+    elif args.model == "1CHAN_VIP_ATARI":
+        trainset = AtariVIPDataLoad.AtariVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, goal=False)
+
+        if args.arch == 'resnet':
+            print("using resnet")
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TEncoder(channel_in=1, ch=64, z=512).to(device)
+        else:
+            encodernet = TEncoder(channel_in=1, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
+    elif args.model == "3CHAN_VIP_BEOGYM":
+        trainset = VIPDataLoad.VIPDataLoad(root_dir=root_dir + args.expname, transform=transform, goal=True)
+
+        if args.arch == 'resnet':
+            print("using resnet")
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TEncoder(channel_in=3, ch=64, z=512).to(device)
+        else:
+            encodernet = TEncoder(channel_in=3, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
+    elif args.model == "4STACK_VIP_ATARI":
+        trainset = FourStackAtariVIPDataLoad.FourStackAtariVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, goal=False)
+
+        if args.arch == 'resnet':
+            print("using resnet")
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TEncoder(channel_in=4, ch=64, z=512).to(device)
+        else:
+            encodernet = TEncoder(channel_in=4, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
+
     elif args.model == "FPV_BEV_CARLA":
         trainset = CarlaFPVBEV.CarlaFPVBEV(root_dir=root_dir + args.expname, transform=transform)
         #this will give me a tuple: (fpv_batch, bev_batch), each of the batches are of size batch_size
-
         #CHEN
         #resnet150
-        fpvencoder = ResNet(512).to(device)
+        fpvencoder = ResNet(32).to(device)
         
         #vaeencoder
-        bevencoder = BEVEncoder(channel_in=1, ch=32, h_dim=1024, z=512).to(device)
+        bevencoder = VAEBEV(channel_in=1, ch=16, z=32).to(device)
+        vae_model_path = "/lab/kiran/ckpts/pretrained/carla/BEV_VAE_CARLA_RANDOM_BEV_CARLA_STANDARD_0.01_0.01_256_64.pt"
+        vae_ckpt = torch.load(vae_model_path, map_location="cpu")
+        bevencoder.load_state_dict(vae_ckpt['model_state_dict'])
+        bevencoder.eval()
+        for param in bevencoder.parameters():
+            param.requires_grad = False
 
         print(root_dir, args.expname)
         div_val = 255.0
+
+    elif args.model == "FPV_RECONBEV_CARLA":
+        trainset = CarlaFPVBEV.CarlaFPVBEV(root_dir=root_dir + args.expname, transform=transform)
+        #this will give me a tuple: (fpv_batch, bev_batch), each of the batches are of size batch_size
+        #CHEN
+        #resnet150
+        fpvencoder = ResNet(64).to(device)
+        
+        #vae decoder
+        bevencoder = VAEBEV(channel_in=1, ch=16, z=32).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
 
 
     elif args.model == "1CHANLSTM_CONT_ATARI":
@@ -300,7 +370,7 @@ def initialize(is_train):
         return encodernet, teachernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
     elif 'CONT' in args.model:
         return encodernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
-    elif 'BEV' in args.model:
+    elif 'FPV_BEV' in args.model or "FPV_RECONBEV_CARLA" in args.model:
         return fpvencoder, bevencoder, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir    
     else:
         return encodernet, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir

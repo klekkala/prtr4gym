@@ -106,7 +106,7 @@ class SingleAtariModel(VisionNetwork):
             #for param in self._convs.conv_mu.parameters():
             #    param.requires_grad = True
 
-        embed()
+
         #self.trainable_variables(True)
 
 #this is class is reused for every game/city/town

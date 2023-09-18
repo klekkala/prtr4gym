@@ -112,5 +112,10 @@ def clip_loss(fpv_embed, bev_embed, temperature, labels):
 
     
     
-    #loss
-    return loss
+def vip_loss(start_embed, mid_embed, midplus_embed, end_embed):
+    
+    V_0 = -torch.linalg.norm(start_embed-end_embed)
+    V_t1 = -torch.linalg.norm(mid_embed-end_embed)
+    V_t2 = -torch.linalg.norm(midplus_embed-end_embed)
+    VIP_loss = (1-args.sgamma)*-V_0.mean() + torch.logsumexp(V_t1+1-args.sgamma*V_t2, dim=-1)
+    return VIP_loss

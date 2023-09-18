@@ -9,7 +9,6 @@ from IPython import embed
 import torchvision.utils as vutils
 import torch
 
-import torchvision.utils as vutils
 class SingleChannelLSTM(BaseDataset):
     def __init__(self, root_dir, transform=None, max_seq_length=1000):
         super().__init__(root_dir, transform, action=True, value=False, reward=True, episode=True, terminal=True,
@@ -28,16 +27,17 @@ class SingleChannelLSTM(BaseDataset):
         last_img = self.limit_nps[file_ind][im_ind]
         # this is TxHxW
         length = int(last_img - im_ind) #int((last_img - im_ind) / 2) + 1
-        traj = self.obs_nps[file_ind][im_ind:last_img+1, :, :, 0].astype(np.float32)
+        traj = self.bev_nps[file_ind][im_ind:last_img+1, :, :, 0].astype(np.float32)
         # this is TX2
         action = self.action_nps[file_ind][im_ind:last_img]
         trajimg = np.expand_dims(traj, 1)  # add channel dimension
-        source = trajimg if length < 1 else trajimg[:-1]#[:length]
+
         #pads = np.tile(source[-1], (self.max_seq_length - source.shape[0], 1, 1, 1))
         #source = np.concatenate((source, pads))  # padding
 
         target = trajimg if length < 1 else trajimg[1:]  # offset
         action = np.zeros((1, 2)) if length < 1 else action
+        source = trajimg if length < 1 else trajimg[:-1]#[:length]
         #target = np.concatenate((target, np.tile(target[-1], (self.max_seq_length-target.shape[0], 1, 1, 1))))  # padding
         # if self.transform is not None:
         #    img = self.transform(img)

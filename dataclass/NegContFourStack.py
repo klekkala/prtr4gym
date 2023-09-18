@@ -8,8 +8,8 @@ from IPython import embed
 import torch
 
 class NegContFourStack(BaseDataset):
-    def __init__(self, root_dir, transform=None):
-        super().__init__(root_dir, transform, action=False, reward=False, terminal=False, goal=False)
+    def __init__(self, root_dir, transform=None, goal=False):
+        super().__init__(root_dir, transform, action=False, reward=False, terminal=False, goal=goal)
 
 
     def __getitem__(self, item):
