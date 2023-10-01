@@ -10,10 +10,14 @@ from IPython import embed
 import torch
 
 class AtariVIPDataLoad(BaseDataset):
-    def __init__(self, root_dir, transform=None, goal=True):
-        super().__init__(root_dir, transform, action=True, value=False, reward=True, episode=True, terminal=True, goal=goal, use_lstm=True)
+    def __init__(self, root_dir, max_len, transform=None, goal=True):
+        super().__init__(root_dir, transform, action=True, value=False, reward=True, episode=True, terminal=True, goal=goal, use_lstm=False)
         #self.value_thresh = value_thresh
+        self.min_len = 10
+        self.max_len = max_len
+        self.thresh_add = 5
         print(root_dir)
+        print("max_len", max_len)
 
 
     def __getitem__(self, item):
@@ -26,25 +30,33 @@ class AtariVIPDataLoad(BaseDataset):
         
 
         #start index of the episode
-        start_mark = self.id_dict[file_ind][im_ind]
+        #start_mark = self.id_dict[file_ind][im_ind]
+        start_mark = im_ind
 
         #last index of the episode
         #actual last index: self.limit_nps[file_ind][start_ind]
         last_mark = self.limit_nps[file_ind][start_mark]
         
+        #i don't like while loop in the dataloader
+        while last_mark - start_mark < self.min_len:
+            #before 13, 20
+            im_ind -= np.random.randint(self.min_len, self.min_len + self.thresh_add)
+            start_mark = im_ind
+            last_mark = self.limit_nps[file_ind][start_mark]
         #random.randint(start_ind + 3, self.limit_nps[file_ind][start_ind])
 
         # Sample (o_t, o_k, o_k+1, o_T) for VIP training
-        start_ind = np.random.randint(start_mark, last_mark-2)  
-        end_ind = np.random.randint(start_ind+1, last_mark)
+        start_ind = np.random.randint(start_mark, last_mark-2) 
+        end_ind = np.random.randint(start_ind+1, min(start_ind + self.max_len, last_mark))
 
         mid_int = np.random.randint(start_ind, end_ind)
         midplus = min(mid_int+1, end_ind)
 
 
+
         #check the assertion later
         #assert(mid_int > start_ind and mid_int+1 < end_ind)
-        
+
         start_img = np.expand_dims(self.obs_nps[file_ind][start_ind].astype(np.float32), 0)
         last_img = np.expand_dims(self.obs_nps[file_ind][end_ind].astype(np.float32), 0)
 

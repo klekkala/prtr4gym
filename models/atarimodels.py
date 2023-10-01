@@ -92,7 +92,9 @@ class SingleAtariModel(VisionNetwork):
         if "e2e" not in model_config['custom_model_config']['backbone_path'] and "random" not in model_config['custom_model_config']['backbone_path']:
             print(model_config['custom_model_config']['backbone_path'])
             print("loading model weights")
-            checkpoint = torch.load(model_config['custom_model_config']['backbone_path'], map_location="cpu")
+            #checkpoint = torch.load(model_config['custom_model_config']['backbone_path'], map_location="cpu")
+            
+            checkpoint = torch.load(model_config['custom_model_config']['backbone_path'])
             self._convs.load_state_dict(checkpoint['model_state_dict'])
         
         if not model_config['custom_model_config']['train_backbone']:

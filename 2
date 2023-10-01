@@ -206,7 +206,7 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
                 elif '1CHAN_CONT' in args.model:
                     query_imgs = torch.unsqueeze(torch.squeeze(query_imgs), axis=1)
                     pos_imgs = torch.unsqueeze(torch.squeeze(pos_imgs), axis=1)
-                    
+
                 elif '3CHAN_CONT' in args.model:
                     query_imgs = torch.squeeze(query_imgs)
                     pos_imgs = torch.squeeze(pos_imgs)
@@ -355,7 +355,6 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
         loss_iter.append(loss.item())
         loss_log.append(loss.item())
 
-        """
         if i != 0 and i % 20000 == 0:
             if 'VAE' in args.model:
                 auxval = args.kl_weight
@@ -383,7 +382,6 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
             torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt")
             print(np.mean(np.array(loss_iter)))
             #break 
-        """
         #print(np.mean(np.array(loss_iter)))
         # from IPython import embed; embed()
         if 'FPV' in args.model:
@@ -434,4 +432,5 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
                 'model_state_dict': encodernet.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict()
             }    
-        torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + "_" + str(args.lr) + "_" + str(epoch) + ".pt")
+        #torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + "_" + str(epoch) + ".pt")
+        torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt")

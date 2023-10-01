@@ -26,8 +26,7 @@ from models.LSTM import MDLSTM as BEVLSTM
 from models.resnet import ResNet
 from models.BEVEncoder import BEVEncoder
 from models.atari_vae import Encoder, TEncoder
-from dataclass import BaseDataset, CarlaBEV, FourStack, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, PosContFourStack, NegContFourStack, PosContLSTM, NegContLSTM, ContFourStack, PosContThreeLSTM, NegContThreeLSTM, CarlaFPVBEV, NegContThreeChan, PosContThreeChan, VIPDataLoad, AtariVIPDataLoad
-from dataclass import FourStackAtariVIPDataLoad
+from dataclass import BaseDataset, CarlaBEV, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, NegContSingleChan, PosContLSTM, NegContLSTM, TCNContSingleChan, PosContThreeLSTM, NegContThreeLSTM, CarlaFPVBEV, NegContThreeChan, PosContThreeChan, VEPContSingleChan, VIPContSingleChan, AtariVIPDataLoad, TCNContSingleChan, SOMContSingleChan
 import utils
 from arguments import get_args
 
@@ -106,23 +105,21 @@ def initialize(is_train):
     # contlstm_beogym: the dataloader will give 2 pairs of observation, action and value/reward arrays along with goal points for those.
     # BUT ULTIMATELY.. THE LOSS FUNCTION MUST GET EMBEDDINGS AND IF THEY ARE POSITIVE OR NEGATIVE
 
-    elif args.model == "4STACK_CONT_ATARI":
-        negset = NegContFourStack.NegContFourStack(root_dir=root_dir + args.expname, transform=transform)
-        posset = PosContFourStack.PosContFourStack(root_dir=root_dir + args.expname, transform=transform,
-                                                   sample_next=args.sgamma)
+    elif args.model == "1CHAN_CONTSOM_ATARI":
+        negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform)
+        posset = SOMContSingleChan.SOMContSingleChan(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma)
         if args.arch == 'resnet':
             print("using resnet")
             # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
-            encodernet = TEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TEncoder(channel_in=1, ch=64, z=512).to(device)
         else:
-            encodernet = TEncoder(channel_in=4, ch=32, z=512).to(device)
+            encodernet = TEncoder(channel_in=1, ch=32, z=512).to(device)
         print(root_dir, args.expname)
         div_val = 255.0
 
-    elif args.model == "1CHAN_CONT_ATARI":
-        negset = NegContFourStack.NegContFourStack(root_dir=root_dir + args.expname, transform=transform)
-        posset = PosContFourStack.PosContFourStack(root_dir=root_dir + args.expname, transform=transform,
-                                                   sample_next=args.sgamma)
+    elif args.model == "1CHAN_CONTTCN_ATARI":
+        negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform)
+        posset = TCNContSingleChan.TCNContSingleChan(root_dir=root_dir + args.expname, transform=transform)
         if args.arch == 'resnet':
             print("using resnet")
             # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
@@ -146,7 +143,21 @@ def initialize(is_train):
         div_val = 255.0
 
     elif args.model == "1CHAN_VIP_ATARI":
-        trainset = AtariVIPDataLoad.AtariVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, goal=False)
+        trainset = AtariVIPDataLoad.AtariVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, max_len=args.max_len, goal=False)
+        negset = AtariVIPDataLoad.AtariVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, max_len=args.max_len, goal=False)
+
+        if args.arch == 'resnet':
+            print("using resnet")
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TEncoder(channel_in=1, ch=64, z=512).to(device)
+        else:
+            encodernet = TEncoder(channel_in=1, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
+    elif args.model == "1CHAN_CONTVEP_ATARI":
+        posset = VEPContSingleChan.VEPContSingleChan(root_dir=root_dir + args.expname, transform=transform, threshold=args.temperature, goal=False)
+        negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform, goal=False)
 
         if args.arch == 'resnet':
             print("using resnet")
@@ -306,9 +317,14 @@ def initialize(is_train):
     # test_images, _ = dataiter.next()
 
     if is_train and 'CONT' in args.model:
-        negloader, posloader = utils.get_data_STL10(negset, args.train_batch_size, transform, posset,
-                                                    args.sample_batch_size)
-        print("contlksjflkjsdfj")
+        negloader, posloader = utils.get_data_STL10(negset, args.train_batch_size, transform, posset, args.sample_batch_size)
+        print("alksjdflk;asjflk;sajlk;jfdlkfjdlkjflkd")
+    elif is_train and 'VIP' in args.model:
+        if args.sample_batch_size > 0:
+            negloader, trainloader = utils.get_data_STL10(trainset, args.train_batch_size, transform, negset, args.sample_batch_size)
+        else:
+            negloader, trainloader = utils.get_data_STL10(trainset, args.train_batch_size, transform, negset, args.train_batch_size)
+
     elif is_train:
         trainloader, _ = utils.get_data_STL10(trainset, args.train_batch_size, transform)
     elif is_train == False and 'LSTM' in args.model:
@@ -336,12 +352,15 @@ def initialize(is_train):
     if args.load_checkpoint:
         if 'VAE' in args.model:
             auxval = args.kl_weight
+        elif 'VIP' in args.model:
+            auxval = args.max_len
         else:
             auxval = args.temperature
         if args.model_path == "":
+            #this one will throw a bug!!!!
             model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (
                 args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(
-                args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt"
+                args.train_batch_size) + "_" + str(args.sample_batch_size) + "_" + str(args.lr) + "_" + str(epoch) + ".pt"
         else:
             model_path = args.save_dir + args.model_path
         
@@ -370,6 +389,8 @@ def initialize(is_train):
         return encodernet, teachernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
     elif 'CONT' in args.model:
         return encodernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
+    elif 'VIP' in args.model:
+        return encodernet, negloader, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
     elif 'FPV_BEV' in args.model or "FPV_RECONBEV_CARLA" in args.model:
         return fpvencoder, bevencoder, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir    
     else:

@@ -110,8 +110,8 @@ def clip_loss(fpv_embed, bev_embed, temperature, labels):
     return (loss_fpv + loss_bev)/2
 
 
-    
-    
+
+"""  
 def vip_loss(start_embed, mid_embed, midplus_embed, end_embed):
     
     V_0 = -torch.linalg.norm(start_embed-end_embed)
@@ -119,3 +119,40 @@ def vip_loss(start_embed, mid_embed, midplus_embed, end_embed):
     V_t2 = -torch.linalg.norm(midplus_embed-end_embed)
     VIP_loss = (1-args.sgamma)*-V_0.mean() + torch.logsumexp(V_t1+1-args.sgamma*V_t2, dim=-1)
     return VIP_loss
+"""
+
+def sim(tensor1, tensor2):
+    d = -torch.linalg.norm(tensor1 - tensor2, dim = -1)
+    return d
+
+def vip_loss(start_embed, mid_embed, add_mid_embed, midplus_embed, add_midplus_embed, end_embed):
+    
+    epsilon = 1e-8
+    ## VIP Loss 
+    V_0 = sim(start_embed, end_embed) # -||phi(s) - phi(g)||_2
+
+    #what is this?
+    #r =  b_reward.to(V_0.device) # R(s;g) = (s==g) - 1 
+    r = 0
+    V_t1 = sim(mid_embed, end_embed)
+    V_t2 = sim(midplus_embed, end_embed)
+    V_loss = (1-args.sgamma) * -V_0.mean() + torch.log(epsilon + torch.mean(torch.exp(-(r + args.sgamma * V_t2 - V_t1))))
+
+    # Optionally, add additional "negative" observations
+    V_s_neg = []
+    V_s_next_neg = []
+    for i in range(args.sample_batch_size):
+        es0 = add_mid_embed[i]
+        es1 = add_midplus_embed[i]
+
+        V_s_neg.append(sim(es0, end_embed))
+        V_s_next_neg.append(sim(es1, end_embed))
+
+    if args.sample_batch_size > 0:
+        V_s_neg = torch.cat(V_s_neg)
+        V_s_next_neg = torch.cat(V_s_next_neg)
+        r_neg = -torch.ones(V_s_neg.shape).to(V_0.device)
+        V_loss = V_loss + torch.log(epsilon + torch.mean(torch.exp(-(r_neg + args.sgamma * V_s_next_neg - V_s_neg))))
+
+    
+    return V_loss

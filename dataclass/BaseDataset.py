@@ -13,10 +13,12 @@ class BaseDataset(Dataset):
         self.transform = transform
         self.use_lstm = use_lstm
         self.obs_nps = []
+        self.revind_nps = []
         self.bev_nps = []
         self.each_len = []
         self.action_nps = []
         self.value_nps = []
+        self.svalue_nps = []
         self.id_dict = []
         self.reward_nps = []
         self.episode_nps = []
@@ -32,6 +34,7 @@ class BaseDataset(Dataset):
             print(files)
             if 'observation' + exten in files:
                 print(root)
+                #testing for airraid [:102585]
                 self.obs_nps.append(np.load(root + '/observation' + exten, mmap_mode='r'))
                 # self.obs_nps.append(np.load(root + '/observation' + exten, mmap_mode='r')[:10000,:,:,0])
                 if action:
@@ -44,7 +47,11 @@ class BaseDataset(Dataset):
                     self.terminal_nps.append(np.load(root + '/terminal' + exten, mmap_mode='r'))
 
                 if value:
-                    self.value_nps.append(np.load(root + '/value' + exten, mmap_mode='r'))
+                    exten = '.npy'
+                    self.value_nps.append(np.load(root + '/value_truncated' + exten, mmap_mode='r'))
+                    self.svalue_nps.append(np.load(root + '/sorted_value_truncated' + exten, mmap_mode='r'))
+                    self.revind_nps.append(np.load(root + '/reversed_indices_truncated' + exten, mmap_mode='r'))
+                    exten = ''
 
                 if episode:
                     self.episode_nps.append(np.load(root + '/episode' + exten, mmap_mode='r'))
