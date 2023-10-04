@@ -36,7 +36,12 @@ class AtariVIPDataLoad(BaseDataset):
         #last index of the episode
         #actual last index: self.limit_nps[file_ind][start_ind]
         last_mark = self.limit_nps[file_ind][start_mark]
+
+        #print(last_mark - start_mark)
         
+        #if self.max_len == -1:
+        #    self.max_len = last_mark
+
         #i don't like while loop in the dataloader
         while last_mark - start_mark < self.min_len:
             #before 13, 20
@@ -45,22 +50,29 @@ class AtariVIPDataLoad(BaseDataset):
             last_mark = self.limit_nps[file_ind][start_mark]
         #random.randint(start_ind + 3, self.limit_nps[file_ind][start_ind])
 
+        assert(last_mark - start_mark >= self.min_len)
+
         # Sample (o_t, o_k, o_k+1, o_T) for VIP training
-        start_ind = np.random.randint(start_mark, last_mark-2) 
-        end_ind = np.random.randint(start_ind+1, min(start_ind + self.max_len, last_mark))
+        # This seems to be a bug. start_ind is fixed. start_ind = np.random.randint(start_mark, last_mark-2) 
+        start_ind = start_mark
+        end_ind = np.random.randint(start_ind+4, min(start_ind + self.max_len, last_mark))
 
-        mid_int = np.random.randint(start_ind, end_ind)
-        midplus = min(mid_int+1, end_ind)
+        mid_ind = np.random.randint(start_ind, end_ind)
+        midplus = min(mid_ind+1, end_ind)
 
+        #print(end_ind - start_ind)
+        assert(self.min_len > 4)
+        assert(end_ind - start_ind >= 3)
+        assert(end_ind - start_ind <= self.max_len)
 
 
         #check the assertion later
         #assert(mid_int > start_ind and mid_int+1 < end_ind)
-
+        #print(start_ind, mid_ind, end_ind)
         start_img = np.expand_dims(self.obs_nps[file_ind][start_ind].astype(np.float32), 0)
         last_img = np.expand_dims(self.obs_nps[file_ind][end_ind].astype(np.float32), 0)
 
-        mid_img = np.expand_dims(self.obs_nps[file_ind][mid_int].astype(np.float32), 0)
+        mid_img = np.expand_dims(self.obs_nps[file_ind][mid_ind].astype(np.float32), 0)
         midplus_img = np.expand_dims(self.obs_nps[file_ind][midplus].astype(np.float32), 0)
 
 

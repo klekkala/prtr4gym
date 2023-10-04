@@ -24,6 +24,7 @@ class BaseDataset(Dataset):
         self.episode_nps = []
         self.limit_nps = []
         self.terminal_nps = []
+        self.value_map = []
         self.goal_nps = []
 
         exten = ""
@@ -44,25 +45,29 @@ class BaseDataset(Dataset):
                     self.reward_nps.append(np.load(root + '/reward' + exten, mmap_mode='r'))
 
                 if terminal:
-                    self.terminal_nps.append(np.load(root + '/terminal' + exten, mmap_mode='r'))
-
+                    exten = '.npy'
+                    self.terminal_nps.append(np.load(root + '/terminal_truncated' + exten, mmap_mode='r'))
+                    exten = ''
                 if value:
                     exten = '.npy'
                     self.value_nps.append(np.load(root + '/value_truncated' + exten, mmap_mode='r'))
-                    self.svalue_nps.append(np.load(root + '/sorted_value_truncated' + exten, mmap_mode='r'))
-                    self.revind_nps.append(np.load(root + '/reversed_indices_truncated' + exten, mmap_mode='r'))
+                    self.value_map.append(np.load(root + '/sorted_value_mapping_truncated', allow_pickle=True))
+                    #self.value_map.append(np.load(root + '/' + exten, mmap_mode='r'))
                     exten = ''
 
                 if episode:
-                    self.episode_nps.append(np.load(root + '/episode' + exten, mmap_mode='r'))
-                    self.limit_nps.append(np.load(root + '/limit' + exten, mmap_mode='r'))
-
+                    exten = '.npy'
+                    self.episode_nps.append(np.load(root + '/episode_truncated' + exten, mmap_mode='r'))
+                    self.limit_nps.append(np.load(root + '/limit_truncated' + exten, mmap_mode='r'))
+                    exten = ''
                 if goal:
                     self.goal_nps.append(np.load(root + '/goal' + exten, mmap_mode='r'))
 
                 if self.use_lstm:
+                    exten = '.npy'
                     ab = np.load(root + '/id_dict' + exten, allow_pickle=True)
                     self.id_dict.append(ab[()])
+                    exten = ''
 
             elif 'fpv.npy' in files:
                 print(root)

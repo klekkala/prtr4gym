@@ -127,16 +127,17 @@ def sim(tensor1, tensor2):
 
 def vip_loss(start_embed, mid_embed, add_mid_embed, midplus_embed, add_midplus_embed, end_embed):
     
-    epsilon = 1e-8
+    epsilon = 1e-4
     ## VIP Loss 
     V_0 = sim(start_embed, end_embed) # -||phi(s) - phi(g)||_2
 
     #what is this?
     #r =  b_reward.to(V_0.device) # R(s;g) = (s==g) - 1 
-    r = 0
+    r = -1 #before it was 0, now changing to -1
     V_t1 = sim(mid_embed, end_embed)
     V_t2 = sim(midplus_embed, end_embed)
     V_loss = (1-args.sgamma) * -V_0.mean() + torch.log(epsilon + torch.mean(torch.exp(-(r + args.sgamma * V_t2 - V_t1))))
+
 
     # Optionally, add additional "negative" observations
     V_s_neg = []
