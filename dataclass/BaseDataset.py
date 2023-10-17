@@ -59,15 +59,16 @@ class BaseDataset(Dataset):
                     exten = '.npy'
                     self.episode_nps.append(np.load(root + '/episode_truncated' + exten, mmap_mode='r'))
                     self.limit_nps.append(np.load(root + '/limit_truncated' + exten, mmap_mode='r'))
+                    ab = np.load(root + '/id_dict_truncated' + exten, allow_pickle=True)
+                    self.id_dict.append(ab[()])
                     exten = ''
+
+
                 if goal:
                     self.goal_nps.append(np.load(root + '/goal' + exten, mmap_mode='r'))
 
-                if self.use_lstm:
-                    exten = '.npy'
-                    ab = np.load(root + '/id_dict' + exten, allow_pickle=True)
-                    self.id_dict.append(ab[()])
-                    exten = ''
+
+
 
             elif 'fpv.npy' in files:
                 print(root)

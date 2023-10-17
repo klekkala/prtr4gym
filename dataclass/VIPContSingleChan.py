@@ -26,12 +26,13 @@ class VIPDataLoad(BaseDataset):
         
 
         #start index of the episode
-        start_mark = self.id_dict[file_ind][im_ind]
+        start_mark = self.id_dict[file_ind][self.episode_nps[file_ind][im_ind]]
 
         #last index of the episode
         #actual last index: self.limit_nps[file_ind][start_ind]
         last_mark = self.limit_nps[file_ind][start_mark]
-        
+        print(start_mark, last_mark)
+        assert(start_mark < last_mark)
         #random.randint(start_ind + 3, self.limit_nps[file_ind][start_ind])
 
         # Sample (o_t, o_k, o_k+1, o_T) for VIP training
@@ -43,7 +44,7 @@ class VIPDataLoad(BaseDataset):
 
 
         #check the assertion later
-        #assert(mid_int > start_ind and mid_int+1 < end_ind)
+        assert(mid_int > start_ind and mid_int+1 < end_ind)
         
         start_img = np.moveaxis(self.obs_nps[file_ind][start_ind].astype(np.float32), -1, 0)
         last_img = np.moveaxis(self.obs_nps[file_ind][end_ind].astype(np.float32), -1, 0)

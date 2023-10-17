@@ -10,14 +10,14 @@ from IPython import embed
 import torch
 
 class AtariVIPDataLoad(BaseDataset):
-    def __init__(self, root_dir, max_len, transform=None, goal=True):
+    def __init__(self, root_dir, max_len, min_len, transform=None, goal=True):
         super().__init__(root_dir, transform, action=True, value=False, reward=True, episode=True, terminal=True, goal=goal, use_lstm=False)
         #self.value_thresh = value_thresh
-        self.min_len = 10
+        self.min_len = min_len
         self.max_len = max_len
         self.thresh_add = 5
         print(root_dir)
-        print("max_len", max_len)
+        print("max_len", max_len, "min_len", min_len)
 
 
     def __getitem__(self, item):

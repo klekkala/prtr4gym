@@ -105,9 +105,9 @@ def initialize(is_train):
     # contlstm_beogym: the dataloader will give 2 pairs of observation, action and value/reward arrays along with goal points for those.
     # BUT ULTIMATELY.. THE LOSS FUNCTION MUST GET EMBEDDINGS AND IF THEY ARE POSITIVE OR NEGATIVE
 
-    elif args.model == "1CHAN_CONTSOM_ATARI":
-        negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform)
-        posset = SOMContSingleChan.SOMContSingleChan(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma)
+    elif args.model == "1CHAN_SOM_ATARI":
+        posset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform)
+        negset = SOMContSingleChan.SOMContSingleChan(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma)
         if args.arch == 'resnet':
             print("using resnet")
             # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
@@ -117,9 +117,9 @@ def initialize(is_train):
         print(root_dir, args.expname)
         div_val = 255.0
 
-    elif args.model == "1CHAN_CONTTCN_ATARI":
-        negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform)
-        posset = TCNContSingleChan.TCNContSingleChan(root_dir=root_dir + args.expname, transform=transform)
+    elif args.model == "1CHAN_TCN_ATARI":
+        posset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform)
+        negset = TCNContSingleChan.TCNContSingleChan(root_dir=root_dir + args.expname, transform=transform, pos_distance=args.max_len)
         if args.arch == 'resnet':
             print("using resnet")
             # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
@@ -143,8 +143,8 @@ def initialize(is_train):
         div_val = 255.0
 
     elif args.model == "1CHAN_VIP_ATARI":
-        trainset = AtariVIPDataLoad.AtariVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, max_len=args.max_len, goal=False)
-        negset = AtariVIPDataLoad.AtariVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, max_len=args.max_len, goal=False)
+        trainset = AtariVIPDataLoad.AtariVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, max_len=args.max_len, min_len=args.min_len, goal=False)
+        negset = AtariVIPDataLoad.AtariVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, max_len=args.max_len, min_len=args.min_len, goal=False)
 
         if args.arch == 'resnet':
             print("using resnet")
@@ -155,8 +155,8 @@ def initialize(is_train):
         print(root_dir, args.expname)
         div_val = 255.0
 
-    elif args.model == "1CHAN_CONTVEP_ATARI":
-        posset = VEPContSingleChan.VEPContSingleChan(root_dir=root_dir + args.expname, transform=transform, threshold=args.temperature, goal=False)
+    elif args.model == "1CHAN_VEP_ATARI":
+        posset = VEPContSingleChan.VEPContSingleChan(root_dir=root_dir + args.expname, transform=transform, threshold=args.temperature, max_len = args.max_len, goal=False)
         negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform, goal=False)
 
         if args.arch == 'resnet':
@@ -318,12 +318,24 @@ def initialize(is_train):
 
     if is_train and 'CONT' in args.model:
         negloader, posloader = utils.get_data_STL10(negset, args.train_batch_size, transform, posset, args.sample_batch_size)
-        print("alksjdflk;asjflk;sajlk;jfdlkfjdlkjflkd")
+    
+    elif is_train and 'VEP' in args.model:
+        if args.sample_batch_size > 0:
+            negloader, posloader = utils.get_data_STL10(negset, args.sample_batch_size, transform, posset, args.train_batch_size)
+        else:
+            negloader, posloader = utils.get_data_STL10(negset, args.train_batch_size, transform, posset, args.train_batch_size)
     elif is_train and 'VIP' in args.model:
         if args.sample_batch_size > 0:
             negloader, trainloader = utils.get_data_STL10(trainset, args.train_batch_size, transform, negset, args.sample_batch_size)
         else:
             negloader, trainloader = utils.get_data_STL10(trainset, args.train_batch_size, transform, negset, args.train_batch_size)
+
+    elif is_train and ('TCN' in args.model or 'SOM' in args.model):
+        print("This is TCN or SOM")
+        if args.sample_batch_size > 0:
+            negloader, posloader = utils.get_data_STL10(negset, args.train_batch_size, transform, posset, args.sample_batch_size)
+        else:
+            negloader, posloader = utils.get_data_STL10(negset, args.train_batch_size, transform, negset, args.train_batch_size)
 
     elif is_train:
         trainloader, _ = utils.get_data_STL10(trainset, args.train_batch_size, transform)
@@ -352,7 +364,7 @@ def initialize(is_train):
     if args.load_checkpoint:
         if 'VAE' in args.model:
             auxval = args.kl_weight
-        elif 'VIP' in args.model:
+        elif 'VIP' in args.model or 'TCN':
             auxval = args.max_len
         else:
             auxval = args.temperature
@@ -387,7 +399,7 @@ def initialize(is_train):
 
     if 'DUAL' in args.model:
         return encodernet, teachernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
-    elif 'CONT' in args.model:
+    elif 'CONT' in args.model or 'TCN' in args.model or 'VEP' in args.model or 'SOM' in args.model:
         return encodernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
     elif 'VIP' in args.model:
         return encodernet, negloader, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir
