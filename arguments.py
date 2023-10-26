@@ -14,7 +14,7 @@ def get_args():
     )
     parser.add_argument(
         "--model",
-        choices=["FPV_RECONBEV_CARLA", "FPV_BEV_CARLA", "BEV_VAE_CARLA", "BEV_LSTM_CARLA", "4STACK_VAE_ATARI", "3CHANRGB_VAE_ATARI101", "1CHAN_VAE_ATARI101", "3CHAN_VAE_ATARI", "1CHAN_VAE_ATARI", "1CHANLSTM_CONT_ATARI", "4STACK_CONT_ATARI", "DUAL_4STACK_CONT_ATARI", "3CHANLSTM_CONT_BEOGYM", "1CHAN_CONT_ATARI", "3CHAN_CONT_BEOGYM", "3CHAN_VIP_BEOGYM", "1CHAN_VIP_ATARI", "4STACK_VIP_ATARI", "1CHAN_VEP_ATARI", "1CHAN_TCN_ATARI", "1CHAN_SOM_ATARI"],
+        choices=["FPV_RECONBEV_CARLA", "FPV_BEV_CARLA", "BEV_VAE_CARLA", "BEV_LSTM_CARLA", "4STACK_VAE_ATARI", "3CHANRGB_VAE_ATARI101", "1CHAN_VAE_ATARI101", "3CHAN_VAE_ATARI", "1CHAN_VAE_ATARI", "1CHANLSTM_CONT_ATARI", "4STACK_CONT_ATARI", "DUAL_4STACK_CONT_ATARI", "3CHANLSTM_CONT_BEOGYM", "1CHAN_CONT_ATARI", "3CHAN_CONT_BEOGYM", "3CHAN_VIP_BEOGYM", "1CHAN_VIP_ATARI", "4STACK_VIP_ATARI", "1CHAN_VEP_ATARI", "1CHAN_NVEP_ATARI", "1CHAN_TCN_ATARI", "1CHAN_SOM_ATARI"],
         default="e2e",
     )
     parser.add_argument(
@@ -41,6 +41,9 @@ def get_args():
         "--expname", type=str, default="all", help="pretrained results"
     )
     parser.add_argument(
+        "--negtype", type=str, default="same", help="pretrained results"
+    )
+    parser.add_argument(
         "--maxseq", type=int, default=7500, help="pretrained results"
     )
     parser.add_argument(
@@ -52,6 +55,9 @@ def get_args():
     )
     parser.add_argument(
         "--min_len", type=float, default=20, help="GPU ID"
+    )
+    parser.add_argument(
+        "--dthresh", type=float, default=-1, help="GPU ID"
     )
     parser.add_argument(
         "--max_len", type=float, default=150, help="GPU ID"

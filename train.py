@@ -74,11 +74,9 @@ if 'DUAL' in args.model:
     # negloader should be loading the teacher dataset
     encodernet, teachernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(
         True)
-elif 'VEP' in args.model:
-    encodernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(
-        True)
-elif 'TCN' in args.model or 'SOM' in args.model:
-    encodernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(
+
+elif 'TCN' in args.model or 'SOM' in args.model or 'VEP' in args.model or 'VIP' in args.model:
+    encodernet, negloader, trainloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(
         True)
 elif 'CONT' in args.model:
     encodernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(
@@ -86,8 +84,6 @@ elif 'CONT' in args.model:
 elif 'FPV' in args.model:
     fpvencoder, bevencoder, negloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(
         True)
-elif 'VIP' in args.model:
-    encodernet, negloader, posloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(True)
 else:
     encodernet, negloader, div_val, start_epoch, loss_log, optimizer, device, curr_dir = initial.initialize(True)
 
@@ -135,9 +131,9 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
     # contrastive case: for i, (img_batch1, img_batch2, pair) in enumerate(tqdm(trainloader, leave=False)):
     # img_batch1, img_batch2 -> [B, T, H, W]
 
-    if 'CONT' in args.model or 'VIP' in args.model or 'VEP' in args.model:
+    if 'CONT' in args.model or 'VIP' in args.model or 'VEP' in args.model or 'SOM' in args.model:
         encodernet.train()
-        positerator = iter(posloader)
+        negiterator = iter(negloader)
     if 'BEV_VAE' in args.model:
         encodernet.train()
         anchors = []
@@ -152,7 +148,7 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
     else:
         encodernet.train()
 
-    for i, negdata in enumerate(tqdm(negloader, leave=False)):
+    for i, traindata in enumerate(tqdm(trainloader, leave=False)):
 
 
         if 'CONT' in args.model:
@@ -315,7 +311,7 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
             # regression
 #            loss = F.mse_loss(image_embed, targ_embed)
 
-        elif 'TCN' in args.model or 'SOM' in args.model:
+        elif 'TCN' in args.model:
 
             #try:
             #    posdata = next(positerator)
@@ -340,35 +336,77 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
             loss = loss_func(torch.cat([query, positives, negatives], axis=0),
                                 torch.cat([posclasses, posclasses, negclasses], axis=0))
 
-
-        elif 'VEP' in args.model:
+        elif 'SOM' in args.model:
 
             try:
-                posdata = next(positerator)
+                negdata = next(negiterator)
             except StopIteration:
-                positerator = iter(posloader)
-                posdata = next(positerator)
+                negiterator = iter(negloader)
+                negdata = next(negiterator)
             
             
             #don't use this yet
-            #neg_reshape_val = negdata.to(device) / div_val
+            neg_reshape_val = negdata.to(device) / div_val
             pos_reshape_val = posdata.to(device) / div_val
+            #embed()
+            query_imgs, pos_imgs, neg_imgs = torch.split(pos_reshape_val, 1, dim=1)
 
+            if args.sample_batch_size == args.train_batch_size:
+                neg_imgs = neg_reshape_val
 
-            query_imgs, pos_imgs, neg_imgs = torch.split(pos_reshape_val, 2, dim=1)
-            query_imgs = query_imgs.reshape(query_imgs.shape[0]*query_imgs.shape[1], 1, 84, 84)
-            pos_imgs = pos_imgs.reshape(pos_imgs.shape[0]*pos_imgs.shape[1], 1, 84, 84)
-            neg_reshape_val = neg_imgs.reshape(neg_imgs.shape[0]*neg_imgs.shape[1], 1, 84, 84)
-
-            query = encodernet(query_imgs)
-            positives = encodernet(pos_imgs)
-            negatives = encodernet(neg_reshape_val)
-
+            query = encodernet(query_imgs.reshape(query_imgs.shape[0], 1, 84, 84))
+            positives = encodernet(pos_imgs.reshape(pos_imgs.shape[0], 1, 84, 84))
+            negatives = encodernet(neg_imgs.reshape(neg_imgs.shape[0], 1, 84, 84))
+            
             # allocat classes for queries, positives and negatives
             posclasses = torch.arange(start=0, end=query.shape[0])
             negclasses = torch.arange(start=query.shape[0], end=query.shape[0] + negatives.shape[0])
             loss = loss_func(torch.cat([query, positives, negatives], axis=0),
                                 torch.cat([posclasses, posclasses, negclasses], axis=0))
+
+
+        elif 'VEP' in args.model:
+
+            try:
+                negdata = next(negiterator)
+            except StopIteration:
+                negiterator = iter(negloader)
+                negdata = next(negiterator)
+            
+            
+            #don't use this yet
+            #neg_reshape_val = negdata.to(device) / div_val
+            pos_reshape_val = traindata.to(device) / div_val
+
+            
+            #each of the items on the left is of size Bx2
+            query_imgs, pos_imgs, neg_imgs, goal_imgs = torch.split(pos_reshape_val, 2, dim=1)
+
+            # allocat classes for queries, positives, negatives and goals
+            posclasses = torch.arange(start=0, end=query_imgs.shape[0]).repeat(2, 1).T
+            goalclasses = torch.arange(start=query_imgs.shape[0], end=query_imgs.shape[0] + goal_imgs.shape[0]).repeat(2,1).T
+            negclasses = torch.arange(start=query_imgs.shape[0]+goal_imgs.shape[0], end=query_imgs.shape[0] + goal_imgs.shape[0] + neg_imgs.shape[0]*2).reshape(neg_imgs.shape[0], 2)
+
+            query_imgs = query_imgs.reshape(query_imgs.shape[0]*query_imgs.shape[1], 1, 84, 84)
+            pos_imgs = pos_imgs.reshape(pos_imgs.shape[0]*pos_imgs.shape[1], 1, 84, 84)
+            neg_reshape_val = neg_imgs.reshape(neg_imgs.shape[0]*neg_imgs.shape[1], 1, 84, 84)
+            goal_imgs = goal_imgs.reshape(goal_imgs.shape[0]*goal_imgs.shape[1], 1, 84, 84)
+            
+
+            query = encodernet(query_imgs)
+            positives = encodernet(pos_imgs)
+            negatives = encodernet(neg_reshape_val)
+           
+
+            if 'NVEP' in args.model:
+                loss = loss_func(torch.cat([query, positives, negatives], axis=0),
+                    torch.cat([posclasses.flatten(), posclasses.flatten(), negclasses.flatten()], axis=0))
+            else:
+                goals = encodernet(goal_imgs)
+                loss = loss_func(torch.cat([query, positives, negatives, goals], axis=0),
+                    torch.cat([posclasses.flatten(), posclasses.flatten(), negclasses.flatten(), goalclasses.flatten()], axis=0))
+            
+            
 
         elif 'VIP' in args.model:
 
@@ -422,35 +460,6 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
         loss_iter.append(loss.item())
         loss_log.append(loss.item())
 
-        """
-        if i != 0 and i % 20000 == 0:
-            if 'VAE' in args.model:
-                auxval = args.kl_weight
-            elif 'VIP' in args.model:
-                auxval = args.max_len
-            else:
-                auxval = args.temperature
-
-            print("saving checkpoint")
-            if 'FPV' in args.model:
-                save_dict = {
-                 'epoch': epoch,
-                 'loss_log': loss_log,
-                 'fpv_state_dict': fpvencoder.state_dict(),
-                 'bev_state_dict': bevencoder.state_dict(),
-                 'optimizer_state_dict': optimizer.state_dict()
-                }
-            else:
-                save_dict = {
-                    'epoch': epoch,
-                    'loss_log': loss_log,
-                    'model_state_dict': encodernet.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict()
-                }    
-            torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt")
-            print(np.mean(np.array(loss_iter)))
-            #break 
-        """
         #print(np.mean(np.array(loss_iter)))
         # from IPython import embed; embed()
         if 'FPV' in args.model:
@@ -473,7 +482,7 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
     elif 'VIP' in args.model:
         auxval = str(args.max_len) + '_' + str(args.min_len)
     elif 'VEP' in args.model:
-        auxval = str(args.max_len) + '_' + str(args.temperature)
+        auxval = str(args.max_len) + '_' + str(args.temperature) + '_' + str(args.dthresh) + '_' + str(args.negtype)
     elif 'TCN':
         auxval = str(args.max_len)
     elif 'SOM':
@@ -507,4 +516,4 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
                 'model_state_dict': encodernet.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict()
             }    
-        torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + auxval + "_" + str(args.sgamma) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + "_" + str(args.lr) + "_" + str(epoch) + ".pt")
+        torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + auxval + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + "_" + str(args.lr) + "_" + str(epoch) + ".pt")

@@ -13,16 +13,22 @@ import torch
 
 
 class VEPContSingleChan(BaseDataset):
-    def __init__(self, root_dir, threshold, max_len, transform=None, value=True, episode=True, goal=False):
-        super().__init__(root_dir, transform, action=True, value=value, reward=True, episode=episode, terminal=True, goal=goal, use_lstm=True)
+    def __init__(self, root_dir, threshold, max_len, dthresh, negtype, transform=None, value=True, episode=True, goal=False):
+        super().__init__(root_dir, transform, action=True, value=value, reward=True, episode=episode, terminal=True, goal=goal, use_lstm=False)
         #self.value_thresh = value_thresh
         print(root_dir)
         self.threshold = threshold
         self.max_len = max_len
+        self.dthresh = dthresh
+        self.negtype = negtype
+
+        #anywhere to the right
         if self.max_len == -1:
             print(print("max_len -1"))
-        elif self.max_len < 1.0:
+        #fractional
+        elif self.max_len > 0.0 and self.max_len < 1.0:
             assert(self.max_len > 0.0 and self.max_len <= .3)
+        #actual number of time-instants
         else:
             ###fix this
             assert(self.max_len < 20)
@@ -31,22 +37,25 @@ class VEPContSingleChan(BaseDataset):
 
     def lin_search(self, chose_ind, chose_game, vlimit, loc_max_len):
 
-        if chose_ind == min(chose_ind + loc_max_len, self.limit_nps[chose_game][chose_ind]):
+        if loc_max_len > 0.0:
+            end_val = min(chose_ind + loc_max_len, self.limit_nps[chose_game][chose_ind])
+        else:
+            end_val = self.limit_nps[chose_game][chose_ind]
+
+        if chose_ind == end_val:
             return chose_ind
-        elif chose_ind + 1 == min(chose_ind + loc_max_len, self.limit_nps[chose_game][chose_ind]):
+        elif chose_ind + 1 == end_val:
             return chose_ind+1
         
-        assert(chose_ind + 1 < min(chose_ind + loc_max_len, self.limit_nps[chose_game][chose_ind]))
         minval = self.value_nps[chose_game][chose_ind+1]
         minind = chose_ind+1
-        for i in range(chose_ind + 1, min(chose_ind + loc_max_len, self.limit_nps[chose_game][chose_ind])):
-
+        for i in range(chose_ind + 1, end_val):
             if minval > abs(vlimit - self.value_nps[chose_game][i]):
                 minind = i
                 minval = abs(vlimit - self.value_nps[chose_game][i])
 
         assert(minind > chose_ind)
-        assert(minind <= chose_ind + loc_max_len)
+        assert(minind <= end_val)
         return minind
 
 
@@ -56,13 +65,13 @@ class VEPContSingleChan(BaseDataset):
         #negative should be more far than the positive.
         #it need not be far as in 2*delta
         if i+delta + 1 <= end:
+            if self.negtype == "same":
+                return random.randint(i+delta+1, end)
             choices.append(random.randint(i+delta+1, end))
+
         if i-delta-1 >= start:
             choices.append(random.randint(start, i-delta-1))
         
-        #instead of this
-        #assert(len(choices) > 0)
-        #use this
         if len(choices) == 0:
             print("bad")
             choices.append(random.randint(start, end))
@@ -89,16 +98,17 @@ class VEPContSingleChan(BaseDataset):
         #next_value = rand_sample_until(self.treshold)
         
 
-        ##I CHANGED THIS!!
+        episode1_start = self.id_dict[file_ind][self.episode_nps[file_ind][im_ind]]
         if self.max_len != -1:
-            episode1_start = self.id_dict[file_ind][self.episode_nps[file_ind][im_ind]]
             game1_max_len = self.limit_nps[file_ind][im_ind] - episode1_start + 1
             game1_distance_thresh = self.max_len*game1_max_len if self.max_len < 1.0 else self.max_len
+            #assert(delta <= self.max_len*game1_max_len+1)
         else:
             game1_distance_thresh = -1
+        #FIND THE ELEMENT THAT HAS THE CLOSEST VALUE TO VALUE+THRESHOLD WITHIN THE MAX DISTANCE MEASURE
         delta = random.randint(im_ind, self.lin_search(im_ind, file_ind, value + self.threshold, int(game1_distance_thresh))) - im_ind
         assert(delta >= 0)
-        assert(delta <= self.max_len*game1_max_len+1)
+        
 
         next_value = self.value_nps[file_ind][im_ind + delta]
 
@@ -124,7 +134,9 @@ class VEPContSingleChan(BaseDataset):
 
         val_ind = bisect.bisect_left(val_list, value)
         nearest_value = val_list[val_ind]
-        assert(abs(nearest_value - value) < .05)
+        #print(nearest_value, value)
+        if nearest_value - value > .1:
+            print(value, nearest_value)
 
         #get the value in the corresponding game
         chose_ind = random.choice(self.value_map[chose_game][nearest_value])
@@ -134,11 +146,17 @@ class VEPContSingleChan(BaseDataset):
         assert(chose_ind <= self.limit_nps[chose_game][chose_ind])
 
         episode2_start = self.id_dict[chose_game][self.episode_nps[chose_game][chose_ind]]
-        game2_max_len = self.limit_nps[chose_game][chose_ind] - episode2_start + 1
-        game2_distance_thresh = self.max_len*game2_max_len if self.max_len < 1.0 else self.max_len
+        if self.dthresh != -1:
+            game2_max_len = self.limit_nps[chose_game][chose_ind] - episode2_start + 1
+            game2_distance_thresh = self.dthresh*game2_max_len if self.dthresh < 1.0 else self.dthresh
+            #assert(chose_delta <= self.max_len*game2_max_len+1)
+        else:
+            game2_distance_thresh = -1
+
+
         chose_delta = self.lin_search(chose_ind, chose_game, nearest_value + abs(next_value - value), int(game2_distance_thresh)) - chose_ind
 
-        assert(chose_delta <= self.max_len*game2_max_len+1)
+        
 
         assert(chose_delta >= 0)
         
@@ -159,6 +177,10 @@ class VEPContSingleChan(BaseDataset):
         negsample2 = self.find_neg(chose_game, chose_ind, chose_delta, episode2_start, self.limit_nps[chose_game][chose_ind])
         #print(negsample1, im_ind, im_ind+delta)
 
+        #WHEN IN DOUBT PRINT THIS
+        #print(delta, negsample1-im_ind, chose_delta, negsample2-chose_ind)
+        
+        
         #check if deltas are within permissible range
         #assert(delta <= .3*game1_max_len)
         #assert(chose_delta <= .3*game2_max_len)
@@ -166,16 +188,22 @@ class VEPContSingleChan(BaseDataset):
         assert(self.limit_nps[file_ind][episode1_start] == self.limit_nps[file_ind][im_ind] == self.limit_nps[file_ind][im_ind+delta])
         assert(self.limit_nps[chose_game][episode2_start] == self.limit_nps[chose_game][chose_ind] == self.limit_nps[chose_game][chose_ind+chose_delta])
 
+        #print(im_ind, im_ind+delta, negsample1)
+        #print(chose_ind, chose_ind+chose_delta, negsample2)
+
         assert(negsample1 < im_ind-delta or negsample1 > im_ind+delta)
         assert(negsample2 < chose_ind-chose_delta or negsample2 > chose_ind+chose_delta)
         assert(negsample1 >= episode1_start and negsample1 <= self.limit_nps[file_ind][im_ind])
         assert(negsample2 >= episode2_start and negsample2 <= self.limit_nps[chose_game][chose_ind])
 
         #print(game_ind, file_ind)
-        img = [np.expand_dims(self.obs_nps[file_ind][im_ind].astype(np.float32), axis=0), np.expand_dims(self.obs_nps[file_ind][im_ind + delta].astype(np.float32), axis=0)
-                    ,np.expand_dims(self.obs_nps[chose_game][chose_ind + chose_delta].astype(np.float32), axis=0)
+        img = [np.expand_dims(self.obs_nps[file_ind][im_ind].astype(np.float32), axis=0)
+                    ,np.expand_dims(self.obs_nps[chose_game][chose_ind].astype(np.float32), axis=0)
+                    ,np.expand_dims(self.obs_nps[file_ind][im_ind + delta].astype(np.float32), axis=0)
                     ,np.expand_dims(self.obs_nps[chose_game][chose_ind + chose_delta].astype(np.float32), axis=0)
                     ,np.expand_dims(self.obs_nps[file_ind][negsample1].astype(np.float32), axis=0)
                     ,np.expand_dims(self.obs_nps[chose_game][negsample2].astype(np.float32), axis=0)]
-        
+       
+        img.append(np.expand_dims(self.obs_nps[file_ind][self.limit_nps[file_ind][im_ind]].astype(np.float32), axis=0))
+        img.append(np.expand_dims(self.obs_nps[chose_game][self.limit_nps[chose_game][chose_ind]].astype(np.float32), axis=0))
         return np.stack(img, axis=0)
