@@ -8,9 +8,9 @@ import random
 from IPython import embed
 import torch
 
-class TCNContSingleChan(BaseDataset):
-    def __init__(self, root_dir, pos_distance, transform=None, value=False, episode=True, goal=False):
-        super().__init__(root_dir, transform, action=True, value=value, reward=True, episode=episode, terminal=True, goal=goal, use_lstm=False)
+class TCNContThreeChan(BaseDataset):
+    def __init__(self, root_dir, pos_distance, truncated, transform=None, value=False, episode=True, goal=True):
+        super().__init__(root_dir, transform, action=True, value=value, reward=True, episode=episode, terminal=True, goal=goal, truncated=truncated, use_lstm=False)
 
         self.pos_distance = pos_distance
         assert (self.pos_distance <= 12)
@@ -92,6 +92,6 @@ class TCNContSingleChan(BaseDataset):
         assert (abs(negind-im_ind) > abs(posind - im_ind))
         #sample anchor, positive and negative
 
-        img = [np.expand_dims(self.obs_nps[file_ind][im_ind].astype(np.float32), axis=0), np.expand_dims(self.obs_nps[file_ind][posind].astype(np.float32), axis=0), np.expand_dims(self.obs_nps[file_ind][negind].astype(np.float32), axis=0)]
-        
-        return np.stack(img, axis=0)
+        img = [np.moveaxis(self.obs_nps[file_ind][im_ind].astype(np.float32), -1, 0), np.moveaxis(self.obs_nps[file_ind][posind].astype(np.float32), -1, 0), np.moveaxis(self.obs_nps[file_ind][negind].astype(np.float32), -1, 0)]
+        aux = [self.aux_nps[file_ind][im_ind].astype(np.float32), self.aux_nps[file_ind][posind].astype(np.float32), self.aux_nps[file_ind][negind].astype(np.float32)]
+        return np.stack(img, axis=0), np.stack(aux, axis=0)

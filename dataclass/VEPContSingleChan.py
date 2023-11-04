@@ -17,24 +17,21 @@ class VEPContSingleChan(BaseDataset):
         super().__init__(root_dir, transform, action=True, value=value, reward=True, episode=episode, terminal=True, goal=goal, use_lstm=False)
         #self.value_thresh = value_thresh
         print(root_dir)
-        self.threshold = threshold
         self.max_len = max_len
         self.dthresh = dthresh
+        #dthresh and thresh is not used currently
+        self.threshold = threshold 
+        #self.dthresh = dthresh
+
         self.negtype = negtype
 
         #anywhere to the right
-        if self.max_len == -1:
-            print(print("max_len -1"))
-        #fractional
-        elif self.max_len > 0.0 and self.max_len < 1.0:
-            assert(self.max_len > 0.0 and self.max_len <= .3)
-        #actual number of time-instants
-        else:
-            ###fix this
-            assert(self.max_len < 20)
+        assert(self.max_len < 10 and self.max_len >= -1.0)
         print(max_len)
-        #add an assertion to maxlen
 
+
+    #search for an element in the other game that is closest
+    #to the value difference in the first game
     def lin_search(self, chose_ind, chose_game, vlimit, loc_max_len):
 
         if loc_max_len > 0.0:
@@ -99,14 +96,9 @@ class VEPContSingleChan(BaseDataset):
         
 
         episode1_start = self.id_dict[file_ind][self.episode_nps[file_ind][im_ind]]
-        if self.max_len != -1:
-            game1_max_len = self.limit_nps[file_ind][im_ind] - episode1_start + 1
-            game1_distance_thresh = self.max_len*game1_max_len if self.max_len < 1.0 else self.max_len
-            #assert(delta <= self.max_len*game1_max_len+1)
-        else:
-            game1_distance_thresh = -1
+
         #FIND THE ELEMENT THAT HAS THE CLOSEST VALUE TO VALUE+THRESHOLD WITHIN THE MAX DISTANCE MEASURE
-        delta = random.randint(im_ind, self.lin_search(im_ind, file_ind, value + self.threshold, int(game1_distance_thresh))) - im_ind
+        delta = random.randint(im_ind, self.lin_search(im_ind, file_ind, value + self.threshold, int(self.max_len))) - im_ind
         assert(delta >= 0)
         
 
@@ -122,6 +114,9 @@ class VEPContSingleChan(BaseDataset):
 
         #randomly sample an index with the nearest value to the current value. (OLD method)
         #elind = int(self.revind_nps[file_ind][im_ind] + random.randint(-20, 20))
+
+
+
 
         #GOING TO OTHER GAME
         #randomly sample a game other than
@@ -146,15 +141,9 @@ class VEPContSingleChan(BaseDataset):
         assert(chose_ind <= self.limit_nps[chose_game][chose_ind])
 
         episode2_start = self.id_dict[chose_game][self.episode_nps[chose_game][chose_ind]]
-        if self.dthresh != -1:
-            game2_max_len = self.limit_nps[chose_game][chose_ind] - episode2_start + 1
-            game2_distance_thresh = self.dthresh*game2_max_len if self.dthresh < 1.0 else self.dthresh
-            #assert(chose_delta <= self.max_len*game2_max_len+1)
-        else:
-            game2_distance_thresh = -1
 
 
-        chose_delta = self.lin_search(chose_ind, chose_game, nearest_value + abs(next_value - value), int(game2_distance_thresh)) - chose_ind
+        chose_delta = self.lin_search(chose_ind, chose_game, nearest_value + abs(next_value - value), int(self.dthresh)) - chose_ind
 
         
 

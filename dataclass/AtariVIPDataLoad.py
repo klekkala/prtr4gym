@@ -10,8 +10,8 @@ from IPython import embed
 import torch
 
 class AtariVIPDataLoad(BaseDataset):
-    def __init__(self, root_dir, max_len, min_len, transform=None, goal=True):
-        super().__init__(root_dir, transform, action=True, value=False, reward=True, episode=True, terminal=True, goal=goal, use_lstm=False)
+    def __init__(self, root_dir, max_len, min_len, truncated=True, transform=None, goal=True):
+        super().__init__(root_dir, transform, action=True, value=False, reward=True, episode=True, terminal=True, goal=goal, truncated=truncated, use_lstm=False)
         #self.value_thresh = value_thresh
         self.min_len = min_len
         self.max_len = max_len

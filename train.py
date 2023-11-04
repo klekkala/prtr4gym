@@ -314,21 +314,30 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
         elif 'TCN' in args.model:
 
             #try:
-            #    posdata = next(positerator)
+            #    negdata = next(negiterator)
             #except StopIteration:
-            #    positerator = iter(posloader)
-            #    posdata = next(positerator)
+            #    negiterator = iter(negloader)
+            #    negdata = next(negiterator)
             
             
             #don't use this yet
-            neg_reshape_val = negdata.to(device) / div_val
-            #pos_reshape_val = posdata.to(device) / div_val
+            #neg_reshape_val = negdata.to(device) / div_val
+            pos_reshape_val = traindata[0].to(device) / div_val
+            pos_aux = traindata[1].to(device)
+            
 
-            query_imgs, pos_imgs, neg_imgs = torch.split(neg_reshape_val, 1, dim=1)
-
-            query = encodernet(query_imgs.reshape(query_imgs.shape[0], 1, 84, 84))
-            positives = encodernet(pos_imgs.reshape(pos_imgs.shape[0], 1, 84, 84))
-            negatives = encodernet(neg_imgs.reshape(neg_reshape_val.shape[0], 1, 84, 84))
+            if '3CHAN' in args.model:
+                query_imgs, pos_imgs, neg_imgs = torch.split(pos_reshape_val, 1, dim=1)
+                query_aux, pos_aux, neg_aux = torch.split(pos_aux, 1, dim=1)
+                query = encodernet(torch.squeeze(query_imgs), torch.squeeze(query_aux))
+                positives = encodernet(torch.squeeze(pos_imgs), torch.squeeze(pos_aux))
+                negatives = encodernet(torch.squeeze(neg_imgs), torch.squeeze(neg_aux))               
+            
+            else:
+                query_imgs, pos_imgs, neg_imgs = torch.split(pos_reshape_val, 1, dim=1)
+                query = encodernet(query_imgs.reshape(query_imgs.shape[0], 1, 84, 84))
+                positives = encodernet(pos_imgs.reshape(pos_imgs.shape[0], 1, 84, 84))
+                negatives = encodernet(neg_imgs.reshape(neg_imgs.shape[0], 1, 84, 84))
             
             # allocat classes for queries, positives and negatives
             posclasses = torch.arange(start=0, end=query.shape[0])
@@ -347,12 +356,10 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
             
             #don't use this yet
             neg_reshape_val = negdata.to(device) / div_val
-            pos_reshape_val = posdata.to(device) / div_val
-            #embed()
-            query_imgs, pos_imgs, neg_imgs = torch.split(pos_reshape_val, 1, dim=1)
+            pos_reshape_val = traindata.to(device) / div_val
 
-            if args.sample_batch_size == args.train_batch_size:
-                neg_imgs = neg_reshape_val
+            query_imgs, pos_imgs = torch.split(pos_reshape_val, 1, dim=1)
+            neg_imgs = neg_reshape_val
 
             query = encodernet(query_imgs.reshape(query_imgs.shape[0], 1, 84, 84))
             positives = encodernet(pos_imgs.reshape(pos_imgs.shape[0], 1, 84, 84))
@@ -411,16 +418,18 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
         elif 'VIP' in args.model:
 
             try:
-                posdata = next(positerator)
+                negdata = next(negiterator)
             except StopIteration:
-                positerator = iter(posloader)
-                posdata = next(positerator)
-            _, add_mid_imgs, add_midplus_imgs, _ = torch.split(posdata, 1, dim=1)
+                negiterator = iter(negloader)
+                negdata = next(negiterator)
+
+            #use only if sample_batch_size > 0
+            _, add_mid_imgs, add_midplus_imgs, _ = torch.split(negdata, 1, dim=1)
             
 
 
 
-            start_imgs, mid_imgs, midplus_imgs, end_imgs = torch.split(negdata, 1, dim=1)
+            start_imgs, mid_imgs, midplus_imgs, end_imgs = torch.split(traindata, 1, dim=1)
             
             start_imgs = torch.squeeze(start_imgs.to(device)/div_val)
             mid_imgs = torch.squeeze(mid_imgs.to(device)/div_val)
@@ -474,6 +483,7 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
         else:
             auxval = args.temperature
 
+
     print("learning rate:", optimizer.param_groups[0]['lr'])
 
     print(np.mean(np.array(loss_iter)))
@@ -483,9 +493,9 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
         auxval = str(args.max_len) + '_' + str(args.min_len)
     elif 'VEP' in args.model:
         auxval = str(args.max_len) + '_' + str(args.temperature) + '_' + str(args.dthresh) + '_' + str(args.negtype)
-    elif 'TCN':
+    elif 'TCN' in args.model:
         auxval = str(args.max_len)
-    elif 'SOM':
+    elif 'SOM' in args.model:
         auxval = str(args.sgamma)
     else:
         auxval = str(args.temperature)

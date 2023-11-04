@@ -87,9 +87,10 @@ class SOMContSingleChan(BaseDataset):
         #value = [self.value_nps[file_ind][im_ind].astype(np.float32)]
         #episode = [self.episode_nps[file_ind][im_ind].astype(np.int32)]
 
-        negind = random.randint(self.id_dict[file_ind][self.episode_nps[file_ind][im_ind]], self.limit_nps[file_ind][im_ind])
+        ###this is an update. no negative image will be sampled from this dataloader
+        #negind = random.randint(self.id_dict[file_ind][self.episode_nps[file_ind][im_ind]], self.limit_nps[file_ind][im_ind])
         
-        img = [np.expand_dims(self.obs_nps[file_ind][im_ind].astype(np.float32), axis=0), np.expand_dims(self.obs_nps[file_ind][im_ind + deltat].astype(np.float32), axis=0), np.expand_dims(self.obs_nps[file_ind][negind].astype(np.float32), axis=0)]
+        img = [np.expand_dims(self.obs_nps[file_ind][im_ind].astype(np.float32), axis=0), np.expand_dims(self.obs_nps[file_ind][im_ind + deltat].astype(np.float32), axis=0)]
         
         #return np.stack(img, axis=0), np.stack(value, axis=0), np.stack(episode, axis=0)
         return np.stack(img, axis=0)

@@ -8,7 +8,7 @@ from IPython import embed
 
 class BaseDataset(Dataset):
     def __init__(self, root_dir, transform=None, max_len=None, action=False, reward=False, episode=False,
-                 terminal=False, value=False, goal=False, use_lstm=False):
+                 terminal=False, value=False, goal=False, truncated=True, use_lstm=False):
         self.root_dir = root_dir
         self.transform = transform
         self.use_lstm = use_lstm
@@ -26,6 +26,15 @@ class BaseDataset(Dataset):
         self.terminal_nps = []
         self.value_map = []
         self.goal_nps = []
+        self.aux_nps = []
+
+
+        terminal_file = 'terminal_truncated.npy' if truncated else 'terminal'
+        value_file = 'value_truncated.npy' if truncated else 'value'
+        value_map = 'sorted_value_mapping_truncated' if truncated else 'value_mapping'
+        id_dict_file = 'id_dict_truncated.npy' if truncated else 'id_dict'
+        limit_file = 'limit_truncated.npy' if truncated else 'limit'
+        episode_file = 'episode_truncated.npy' if truncated else 'episode'
 
         exten = ""
         if 'carla' in self.root_dir or 'trained' in self.root_dir or '3chan' in self.root_dir:
@@ -45,27 +54,23 @@ class BaseDataset(Dataset):
                     self.reward_nps.append(np.load(root + '/reward' + exten, mmap_mode='r'))
 
                 if terminal:
-                    exten = '.npy'
-                    self.terminal_nps.append(np.load(root + '/terminal_truncated' + exten, mmap_mode='r'))
-                    exten = ''
+                    self.terminal_nps.append(np.load(root + '/' + terminal_file + exten, mmap_mode='r'))
+
                 if value:
-                    exten = '.npy'
-                    self.value_nps.append(np.load(root + '/value_truncated' + exten, mmap_mode='r'))
-                    self.value_map.append(np.load(root + '/sorted_value_mapping_truncated', allow_pickle=True))
+                    self.value_nps.append(np.load(root + '/' + value_file, mmap_mode='r'))
+                    self.value_map.append(np.load(root + '/' + value_map, allow_pickle=True))
                     #self.value_map.append(np.load(root + '/' + exten, mmap_mode='r'))
-                    exten = ''
 
                 if episode:
-                    exten = '.npy'
-                    self.episode_nps.append(np.load(root + '/episode_truncated' + exten, mmap_mode='r'))
-                    self.limit_nps.append(np.load(root + '/limit_truncated' + exten, mmap_mode='r'))
-                    ab = np.load(root + '/id_dict_truncated' + exten, allow_pickle=True)
+                    self.episode_nps.append(np.load(root + '/' + episode_file + exten, mmap_mode='r'))
+                    self.limit_nps.append(np.load(root + '/' + limit_file + exten, mmap_mode='r'))
+                    print("episode files are: ", episode_file, limit_file)
+                    ab = np.load(root + '/' + id_dict_file + exten, allow_pickle=True)
                     self.id_dict.append(ab[()])
-                    exten = ''
-
 
                 if goal:
                     self.goal_nps.append(np.load(root + '/goal' + exten, mmap_mode='r'))
+                    self.aux_nps.append(np.load(root + '/aux' + exten, mmap_mode='r'))
 
 
 

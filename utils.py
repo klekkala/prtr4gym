@@ -143,6 +143,7 @@ def vip_loss(start_embed, mid_embed, add_mid_embed, midplus_embed, add_midplus_e
     V_s_neg = []
     V_s_next_neg = []
     for i in range(args.sample_batch_size):
+        print("sample batch > 0")
         es0 = add_mid_embed[i]
         es1 = add_midplus_embed[i]
 
@@ -150,6 +151,7 @@ def vip_loss(start_embed, mid_embed, add_mid_embed, midplus_embed, add_midplus_e
         V_s_next_neg.append(sim(es1, end_embed))
 
     if args.sample_batch_size > 0:
+        print("sample batch > 0")
         V_s_neg = torch.cat(V_s_neg)
         V_s_next_neg = torch.cat(V_s_next_neg)
         r_neg = -torch.ones(V_s_neg.shape).to(V_0.device)
