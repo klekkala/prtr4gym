@@ -35,6 +35,7 @@ class BaseDataset(Dataset):
         id_dict_file = 'id_dict_truncated.npy' if truncated else 'id_dict'
         limit_file = 'limit_truncated.npy' if truncated else 'limit'
         episode_file = 'episode_truncated.npy' if truncated else 'episode'
+        
 
         exten = ""
         if 'carla' in self.root_dir or 'trained' in self.root_dir or '3chan' in self.root_dir:
@@ -54,7 +55,7 @@ class BaseDataset(Dataset):
                     self.reward_nps.append(np.load(root + '/reward' + exten, mmap_mode='r'))
 
                 if terminal:
-                    self.terminal_nps.append(np.load(root + '/' + terminal_file + exten, mmap_mode='r'))
+                    self.terminal_nps.append(np.load(root + '/' + terminal_file, mmap_mode='r'))
 
                 if value:
                     self.value_nps.append(np.load(root + '/' + value_file, mmap_mode='r'))
@@ -62,10 +63,10 @@ class BaseDataset(Dataset):
                     #self.value_map.append(np.load(root + '/' + exten, mmap_mode='r'))
 
                 if episode:
-                    self.episode_nps.append(np.load(root + '/' + episode_file + exten, mmap_mode='r'))
-                    self.limit_nps.append(np.load(root + '/' + limit_file + exten, mmap_mode='r'))
+                    self.episode_nps.append(np.load(root + '/' + episode_file, mmap_mode='r'))
+                    self.limit_nps.append(np.load(root + '/' + limit_file, mmap_mode='r'))
                     print("episode files are: ", episode_file, limit_file)
-                    ab = np.load(root + '/' + id_dict_file + exten, allow_pickle=True)
+                    ab = np.load(root + '/' + id_dict_file, allow_pickle=True)
                     self.id_dict.append(ab[()])
 
                 if goal:
@@ -120,7 +121,7 @@ class BaseDataset(Dataset):
         print("blah blah")
         self.lines = self.max_len
         self.num_files = len(self.obs_nps)
-
+        print("truncated", truncated)
         
     def __len__(self):
         return self.lines - 1

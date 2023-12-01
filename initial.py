@@ -26,7 +26,7 @@ from models.LSTM import MDLSTM as BEVLSTM
 from models.resnet import ResNet
 from models.BEVEncoder import BEVEncoder
 from models.atari_vae import Encoder, TEncoder, TBeoEncoder
-from dataclass import BaseDataset, CarlaBEV, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, NegContSingleChan, PosContLSTM, NegContLSTM, TCNContSingleChan, PosContThreeLSTM, NegContThreeLSTM, CarlaFPVBEV, NegContThreeChan, PosContThreeChan, VEPContSingleChan, VIPContSingleChan, AtariVIPDataLoad, TCNContSingleChan, SOMContSingleChan, TCNContThreeChan
+from dataclass import BaseDataset, CarlaBEV, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, NegContSingleChan, PosContLSTM, NegContLSTM, TCNContSingleChan, PosContThreeLSTM, NegContThreeLSTM, CarlaFPVBEV, NegContThreeChan, PosContThreeChan, VEPContSingleChan, BeogymVIPDataLoad, AtariVIPDataLoad, TCNContSingleChan, SOMContSingleChan, TCNContThreeChan, SOMContThreeChan, VEPContThreeChan
 import utils
 from arguments import get_args
 
@@ -117,6 +117,18 @@ def initialize(is_train):
         print(root_dir, args.expname)
         div_val = 255.0
 
+    elif args.model == "3CHAN_SOM_BEOGYM":
+        negset = NegContThreeChan.NegContThreeChan(root_dir=root_dir + args.expname, transform=transform)
+        trainset = SOMContThreeChan.SOMContThreeChan(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma)
+        if args.arch == 'resnet':
+            print("using resnet")
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TBeoEncoder(channel_in=3, ch=64, z=512).to(device)
+        else:
+            encodernet = TBeoEncoder(channel_in=3, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
     elif args.model == "1CHAN_TCN_ATARI":
         negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform)
         trainset = TCNContSingleChan.TCNContSingleChan(root_dir=root_dir + args.expname, transform=transform, pos_distance=args.max_len)
@@ -132,7 +144,7 @@ def initialize(is_train):
 
     elif args.model == "3CHAN_TCN_BEOGYM":
         negset = NegContThreeChan.NegContThreeChan(root_dir=root_dir + args.expname, transform=transform)
-        trainset = TCNContThreeChan.TCNContThreeChan(root_dir=root_dir + args.expname, transform=transform, pos_distance=args.max_len, truncated=False)
+        trainset = TCNContThreeChan.TCNContThreeChan(root_dir=root_dir + args.expname, transform=transform, pos_distance=args.max_len, truncated=True)
 
         if args.arch == 'resnet':
             print("using resnet")
@@ -169,19 +181,33 @@ def initialize(is_train):
         print(root_dir, args.expname)
         div_val = 255.0
 
-    elif args.model == "3CHAN_VIP_BEOGYM":
-        trainset = VIPDataLoad.VIPDataLoad(root_dir=root_dir + args.expname, transform=transform, goal=True)
+    elif args.model == "3CHAN_OVIP_BEOGYM":
+        trainset = BeogymVIPDataLoad.BeogymVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, max_len=args.max_len, min_len=args.min_len, truncated=False, goal=True)
+        negset = BeogymVIPDataLoad.BeogymVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, max_len=args.max_len, min_len=args.min_len, truncated=False, goal=True)
 
         if args.arch == 'resnet':
             print("using resnet")
             # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
-            encodernet = TEncoder(channel_in=3, ch=64, z=512).to(device)
+            encodernet = TBeoEncoder(channel_in=3, ch=64, z=512).to(device)
         else:
-            encodernet = TEncoder(channel_in=3, ch=32, z=512).to(device)
+            encodernet = TBeoEncoder(channel_in=3, ch=32, z=512).to(device)
         print(root_dir, args.expname)
         div_val = 255.0
 
-    elif args.model == "1CHAN_VEP_ATARI" or "1CHAN_NVEP_ATARI":
+    elif args.model == "3CHAN_VIP_BEOGYM":
+        trainset = BeogymVIPDataLoad.BeogymVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, max_len=args.max_len, min_len=args.min_len, truncated=True, goal=True)
+        negset = BeogymVIPDataLoad.BeogymVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, max_len=args.max_len, min_len=args.min_len, truncated=True, goal=True)
+
+        if args.arch == 'resnet':
+            print("using resnet")
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TBeoEncoder(channel_in=3, ch=64, z=512).to(device)
+        else:
+            encodernet = TBeoEncoder(channel_in=3, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
+    elif args.model == "1CHAN_VEP_ATARI" or args.model == "1CHAN_NVEP_ATARI":
         trainset = VEPContSingleChan.VEPContSingleChan(root_dir=root_dir + args.expname, transform=transform, threshold=args.temperature, max_len = args.max_len, dthresh = args.dthresh, negtype = args.negtype, goal=False)
         negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform, goal=False)
 
@@ -194,15 +220,16 @@ def initialize(is_train):
         print(root_dir, args.expname)
         div_val = 255.0
 
-    elif args.model == "3CHAN_VEP_BEOGYM":
-        trainset = VIPDataLoad.VIPDataLoad(root_dir=root_dir + args.expname, transform=transform, goal=True)
+    elif args.model == "3CHAN_VEP_BEOGYM" or args.model == "3CHAN_NVEP_BEOGYM":
+        trainset = VEPContThreeChan.VEPContThreeChan(root_dir=root_dir + args.expname, transform=transform, threshold=args.temperature, max_len = args.max_len, dthresh = args.dthresh, negtype = args.negtype, goal=True)
+        negset = NegContThreeChan.NegContThreeChan(root_dir=root_dir + args.expname, transform=transform, goal=True)
 
         if args.arch == 'resnet':
             print("using resnet")
             # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
-            encodernet = TEncoder(channel_in=3, ch=64, z=512).to(device)
+            encodernet = TBeoEncoder(channel_in=3, ch=64, z=512).to(device)
         else:
-            encodernet = TEncoder(channel_in=3, ch=32, z=512).to(device)
+            encodernet = TBeoEncoder(channel_in=3, ch=32, z=512).to(device)
         print(root_dir, args.expname)
         div_val = 255.0
 

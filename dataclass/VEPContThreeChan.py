@@ -12,7 +12,7 @@ import torch
 
 
 
-class VEPContSingleChan(BaseDataset):
+class VEPContThreeChan(BaseDataset):
     def __init__(self, root_dir, threshold, max_len, dthresh, negtype, transform=None, value=True, episode=True, goal=False):
         super().__init__(root_dir, transform, action=True, value=value, reward=True, episode=episode, terminal=True, goal=goal, use_lstm=False)
         #self.value_thresh = value_thresh
@@ -44,12 +44,18 @@ class VEPContSingleChan(BaseDataset):
         elif chose_ind + 1 == end_val:
             return chose_ind+1
         
-        minval = self.value_nps[chose_game][chose_ind+1]
-        minind = chose_ind+1
-        for i in range(chose_ind + 1, end_val):
-            if minval > abs(vlimit - self.value_nps[chose_game][i]):
-                minind = i
-                minval = abs(vlimit - self.value_nps[chose_game][i])
+        
+        #print(vlimit)
+        if vlimit == -1:
+            minind = random.randint(chose_ind+1, end_val)
+
+        else:
+            minval = self.value_nps[chose_game][chose_ind+1]
+            minind = chose_ind+1
+            for i in range(chose_ind + 1, end_val):
+                if minval > abs(vlimit - self.value_nps[chose_game][i]):
+                    minind = i
+                    minval = abs(vlimit - self.value_nps[chose_game][i])
 
         assert(minind > chose_ind)
         assert(minind <= end_val)
@@ -97,8 +103,11 @@ class VEPContSingleChan(BaseDataset):
 
         episode1_start = self.id_dict[file_ind][self.episode_nps[file_ind][im_ind]]
 
-        #FIND THE ELEMENT THAT HAS THE CLOSEST VALUE TO VALUE+THRESHOLD WITHIN THE MAX DISTANCE MEASURE
-        delta = random.randint(im_ind, self.lin_search(im_ind, file_ind, value + self.threshold, int(self.max_len))) - im_ind
+        if self.threshold == -1:
+           delta = random.randint(im_ind, self.lin_search(im_ind, file_ind, -1, int(self.max_len))) - im_ind
+        else:
+            #FIND THE ELEMENT THAT HAS THE CLOSEST VALUE TO VALUE+THRESHOLD WITHIN THE MAX DISTANCE MEASURE
+            delta = random.randint(im_ind, self.lin_search(im_ind, file_ind, value + self.threshold, int(self.max_len))) - im_ind
         assert(delta >= 0)
         
 
@@ -131,11 +140,13 @@ class VEPContSingleChan(BaseDataset):
         nearest_value = val_list[val_ind]
         #print(nearest_value, value)
         if nearest_value - value > .1:
-            print(value, nearest_value, file_ind, chose_game)
+            print(value, nearest_value)
 
         #get the value in the corresponding game
         chose_ind = random.choice(self.value_map[chose_game][nearest_value])
         assert(abs(nearest_value - self.value_nps[chose_game][chose_ind]) < .05)
+
+        #print(self.value_nps[file_ind][im_ind], self.value_nps[chose_game][chose_ind])
 
         #get the delta
         assert(chose_ind <= self.limit_nps[chose_game][chose_ind])
@@ -186,13 +197,22 @@ class VEPContSingleChan(BaseDataset):
         assert(negsample2 >= episode2_start and negsample2 <= self.limit_nps[chose_game][chose_ind])
 
         #print(game_ind, file_ind)
-        img = [np.expand_dims(self.obs_nps[file_ind][im_ind].astype(np.float32), axis=0)
-                    ,np.expand_dims(self.obs_nps[chose_game][chose_ind].astype(np.float32), axis=0)
-                    ,np.expand_dims(self.obs_nps[file_ind][im_ind + delta].astype(np.float32), axis=0)
-                    ,np.expand_dims(self.obs_nps[chose_game][chose_ind + chose_delta].astype(np.float32), axis=0)
-                    ,np.expand_dims(self.obs_nps[file_ind][negsample1].astype(np.float32), axis=0)
-                    ,np.expand_dims(self.obs_nps[chose_game][negsample2].astype(np.float32), axis=0)]
-       
-        img.append(np.expand_dims(self.obs_nps[file_ind][self.limit_nps[file_ind][im_ind]].astype(np.float32), axis=0))
-        img.append(np.expand_dims(self.obs_nps[chose_game][self.limit_nps[chose_game][chose_ind]].astype(np.float32), axis=0))
-        return np.stack(img, axis=0)
+        img = [np.moveaxis(self.obs_nps[file_ind][im_ind].astype(np.float32), -1, 0)
+                    ,np.moveaxis(self.obs_nps[chose_game][chose_ind].astype(np.float32), -1, 0)
+                    ,np.moveaxis(self.obs_nps[file_ind][im_ind + delta].astype(np.float32), -1, 0)
+                    ,np.moveaxis(self.obs_nps[chose_game][chose_ind + chose_delta].astype(np.float32), -1, 0)
+                    ,np.moveaxis(self.obs_nps[file_ind][negsample1].astype(np.float32), -1, 0)
+                    ,np.moveaxis(self.obs_nps[chose_game][negsample2].astype(np.float32), -1, 0)
+                    ,np.moveaxis(self.obs_nps[file_ind][self.limit_nps[file_ind][im_ind]].astype(np.float32), -1, 0)
+                    ,np.moveaxis(self.obs_nps[chose_game][self.limit_nps[chose_game][chose_ind]].astype(np.float32), -1, 0)]
+        
+        aux = [self.aux_nps[file_ind][im_ind].astype(np.float32)
+                            ,self.aux_nps[chose_game][chose_ind].astype(np.float32)
+                            ,self.aux_nps[file_ind][im_ind + delta].astype(np.float32)
+                            ,self.aux_nps[chose_game][chose_ind + chose_delta].astype(np.float32)
+                            ,self.aux_nps[file_ind][negsample1].astype(np.float32)
+                            ,self.aux_nps[chose_game][negsample2].astype(np.float32)
+                            ,self.aux_nps[file_ind][self.limit_nps[file_ind][im_ind]].astype(np.float32)
+                            ,self.aux_nps[chose_game][self.limit_nps[chose_game][chose_ind]].astype(np.float32)]
+        
+        return np.stack(img, axis=0), np.stack(aux, axis=0)

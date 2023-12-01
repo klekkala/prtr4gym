@@ -8,7 +8,7 @@ from IPython import embed
 import torch
 
 class NegContThreeChan(BaseDataset):
-    def __init__(self, root_dir, transform=None, goal=False):
+    def __init__(self, root_dir, transform=None, goal=True):
         super().__init__(root_dir, transform, action=False, reward=False, terminal=False, goal=goal)
 
 
@@ -19,6 +19,7 @@ class NegContThreeChan(BaseDataset):
         tar = img
         
         img = np.moveaxis(self.obs_nps[file_ind][im_ind].astype(np.float32), -1, 0)
+        aux = self.aux_nps[file_ind][im_ind].astype(np.float32)
 
         #tar = img
         #img = torch.from_numpy(img)
@@ -26,5 +27,5 @@ class NegContThreeChan(BaseDataset):
         #if self.transform is not None:
         #    img = self.transform(img)
         #    target = self.transform(target)
-        return img
+        return img, aux
 

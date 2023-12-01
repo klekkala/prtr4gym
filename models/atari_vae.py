@@ -180,6 +180,7 @@ class TBeoEncoder(nn.Module):
         x = self.conv_mu(x)
         x = torch.flatten(x, start_dim=1)
         
+
         #concat aux
         comb = torch.concat((x, aux), axis=1)
         x = self.joint_layer(comb)

@@ -160,6 +160,7 @@ class TBeoEncoder(nn.Module):
         self.joint_layer = nn.Linear(in_features=514, out_features=512, bias=True)
 
     def forward(self, x, aux):
+        print(x.shape, aux.shape)
         x = self.encoder(x)
         #x = self.conv_mu(x)
         
