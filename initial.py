@@ -21,12 +21,10 @@ from PIL import Image
 from tqdm import trange, tqdm
 from models.RES_VAE import TEncoder as ResEncoder
 from models.atari_vae import VAE, VAEBEV
-from models.LSTM import StateLSTM
-from models.LSTM import MDLSTM as BEVLSTM
 from models.resnet import ResNet
 from models.BEVEncoder import BEVEncoder
 from models.atari_vae import Encoder, TEncoder, TBeoEncoder
-from dataclass import BaseDataset, CarlaBEV, ThreeChannel, SingleChannel, SingleChannelLSTM, SingleAtari101, NegContSingleChan, PosContLSTM, NegContLSTM, TCNContSingleChan, PosContThreeLSTM, NegContThreeLSTM, CarlaFPVBEV, NegContThreeChan, PosContThreeChan, VEPContSingleChan, BeogymVIPDataLoad, AtariVIPDataLoad, TCNContSingleChan, SOMContSingleChan, TCNContThreeChan, SOMContThreeChan, VEPContThreeChan
+from dataclass import BaseDataset, CarlaBEV, ThreeChannel, SingleChannel, SingleAtari101, NegContSingleChan, TCNContSingleChan, CarlaFPVBEV, NegContThreeChan, PosContThreeChan, VEPContSingleChan, BeogymVIPDataLoad, AtariVIPDataLoad, TCNContSingleChan, SOMContSingleChan, TCNContThreeChan, SOMContThreeChan, VEPContThreeChan
 import utils
 from arguments import get_args
 
@@ -36,10 +34,14 @@ args = get_args()
 def initialize(is_train):
     if 'CARLA' in args.model:
         root_dir = "/home/tmp/kiran/"
-    elif 'BEV_LSTM' in args.model:
-        root_dir = "/home/tmp/kiran/"
-    elif 'BEOGYM' in args.model or 'ATARI' in args.model:
-        root_dir = "/dev/shm/"
+    elif 'BEOGYM' in args.model and '3CHAN' in args.model:
+        root_dir = "/lab/tmpig10f/kiran/expert_3chan_beogym/"
+    elif 'BEOGYM' in args.model and '4STACK' in args.model:
+        root_dir = "/lab/tmpig10f/kiran/expert_4stack_beogym/"
+    elif 'ATARI' in args.model and '4STACK' in args.model:
+        root_dir = "/lab/tmpig14c/kiran/expert_4stack_atari/"
+    elif 'ATARI' in args.model and '1CHAN' in args.model:
+        root_dir = "/lab/tmpig14c/kiran/expert_1chan_atari/"
     else:
         root_dir = "/dev/shm/"
     curr_dir = os.getcwd()
@@ -61,20 +63,6 @@ def initialize(is_train):
         encodernet = VAEBEV(channel_in=1, ch=16, z=32).to(device)
         div_val = 255.0
 
-    # CHEN
-    elif args.model == "BEV_LSTM_CARLA":
-        trainset = SingleChannelLSTM.SingleChannelLSTM(root_dir=root_dir + args.expname, transform=transform)
-        vae = VAEBEV(channel_in=1, ch=16, z=32).to(device)
-        vae_model_path = "/lab/kiran/ckpts/pretrained/carla/BEV_VAE_CARLA_RANDOM_BEV_CARLA_STANDARD_0.01_0.01_256_64.pt"
-        vae_ckpt = torch.load(vae_model_path, map_location="cpu")
-        vae.load_state_dict(vae_ckpt['model_state_dict'])
-        vae.eval()
-        for param in vae.parameters():
-            param.requires_grad = False
-        
-        encodernet = BEVLSTM(latent_size=32, action_size=2, hidden_size=256, gaussian_size=5,
-                             num_layers=1, vae=vae).to(device)
-        div_val = 255.0
 
 
     elif args.model == "4STACK_VAE_ATARI":
@@ -234,7 +222,59 @@ def initialize(is_train):
         div_val = 255.0
 
     elif args.model == "4STACK_VIP_ATARI":
-        trainset = FourStackAtariVIPDataLoad.FourStackAtariVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, goal=False)
+        trainset = AtariVIPDataLoad.AtariVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, max_len=args.max_len, min_len=args.min_len, goal=False)
+        negset = AtariVIPDataLoad.AtariVIPDataLoad(root_dir=root_dir + args.expname, transform=transform, max_len=args.max_len, min_len=args.min_len, goal=False)
+
+        if args.arch == 'resnet':
+            print("using resnet")
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TEncoder(channel_in=4, ch=64, z=512).to(device)
+        else:
+            encodernet = TEncoder(channel_in=4, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
+    elif args.model == "4STACK_TCN_ATARI":
+        negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform)
+        trainset = TCNContSingleChan.TCNContSingleChan(root_dir=root_dir + args.expname, transform=transform, pos_distance=args.max_len)
+        
+        if args.arch == 'resnet':
+            print("using resnet")
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TEncoder(channel_in=4, ch=64, z=512).to(device)
+        else:
+            encodernet = TEncoder(channel_in=4, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
+    elif args.model == "4STACK_OTCN_ATARI":
+        negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform, truncated=False)
+        trainset = TCNContSingleChan.TCNContSingleChan(root_dir=root_dir + args.expname, transform=transform, pos_distance=args.max_len, truncated=False)
+        
+        if args.arch == 'resnet':
+            print("using resnet")
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TEncoder(channel_in=4, ch=64, z=512).to(device)
+        else:
+            encodernet = TEncoder(channel_in=4, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
+    elif args.model == "4STACK_SOM_ATARI":
+        negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform)
+        trainset = SOMContSingleChan.SOMContSingleChan(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma)
+        if args.arch == 'resnet':
+            print("using resnet")
+            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
+            encodernet = TEncoder(channel_in=4, ch=64, z=512).to(device)
+        else:
+            encodernet = TEncoder(channel_in=4, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 255.0
+
+    elif args.model == "4STACK_NVEP_ATARI":
+        trainset = VEPContSingleChan.VEPContSingleChan(root_dir=root_dir + args.expname, transform=transform, threshold=args.temperature, max_len = args.max_len, dthresh = args.dthresh, negtype = args.negtype, goal=False)
+        negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform, goal=False)
 
         if args.arch == 'resnet':
             print("using resnet")
@@ -277,24 +317,6 @@ def initialize(is_train):
         print(root_dir, args.expname)
         div_val = 255.0
 
-
-
-    elif args.model == "1CHANLSTM_CONT_ATARI":
-        negset = NegContLSTM.NegContLSTM(root_dir=root_dir + args.expname, transform=transform,
-                                         max_seq_length=args.maxseq)
-        posset = PosContLSTM.PosContLSTM(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma,
-                                         max_seq_length=args.maxseq)
-        if args.arch == 'resnet':
-            print("using resnet")
-            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
-            encoder = TEncoder(channel_in=1, ch=64, z=512).to(device)
-        else:
-            encoder = TEncoder(channel_in=1, ch=32, z=512).to(device)
-        encodernet = StateLSTM(latent_size=512, hidden_size=512, num_layers=1,
-                               encoder=encoder)
-
-        print(root_dir, args.expname)
-        div_val = 255.0
 
 
     elif args.model == "DUAL_4STACK_CONT_ATARI":
@@ -343,22 +365,6 @@ def initialize(is_train):
             param.requires_grad = False
         div_val = 255.0
 
-    elif args.model == "3CHANLSTM_CONT_BEOGYM":
-        negset = NegContThreeLSTM.NegContThreeLSTM(root_dir=root_dir + args.expname, transform=transform,
-                                         max_seq_length=args.maxseq)
-        posset = PosContThreeLSTM.PosContThreeLSTM(root_dir=root_dir + args.expname, transform=transform, sample_next=args.sgamma,
-                                         max_seq_length=args.maxseq)
-        if args.arch == 'resnet':
-            print("using resnet")
-            # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
-            encoder = TEncoder(channel_in=3, ch=64, z=512).to(device)
-        else:
-            encoder = TEncoder(channel_in=3, ch=32, z=512).to(device)
-        encodernet = StateLSTM(latent_size=512, hidden_size=512, num_layers=1,
-                               encoder=encoder)
-
-        print(root_dir, args.expname)
-        div_val = 255.0
 
 
     else:
@@ -381,9 +387,7 @@ def initialize(is_train):
 
     elif is_train:
         trainloader, _ = utils.get_data_STL10(trainset, args.train_batch_size, transform)
-    elif is_train == False and 'LSTM' in args.model:
-        trainloader, _ = utils.get_data_STL10(trainset, 1, transform)
-        args.load_checkpoint = True
+
     else:
         trainloader, _ = utils.get_data_STL10(trainset, 20, transform)
         args.load_checkpoint = True

@@ -8,8 +8,8 @@ from IPython import embed
 import torch
 
 class NegContSingleChan(BaseDataset):
-    def __init__(self, root_dir, transform=None, goal=False):
-        super().__init__(root_dir, transform, action=False, reward=False, terminal=False, goal=goal)
+    def __init__(self, root_dir, transform=None, goal=False, truncated=True):
+        super().__init__(root_dir, transform, action=False, reward=False, terminal=False, goal=goal, truncated=truncated)
 
 
     def __getitem__(self, item):

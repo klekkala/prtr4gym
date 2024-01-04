@@ -36,7 +36,7 @@ class BaseDataset(Dataset):
         limit_file = 'limit_truncated.npy' if truncated else 'limit'
         episode_file = 'episode_truncated.npy' if truncated else 'episode'
         
-
+        print(self.root_dir)
         exten = ""
         if 'carla' in self.root_dir or 'trained' in self.root_dir or '3chan' in self.root_dir:
             exten = '.npy'

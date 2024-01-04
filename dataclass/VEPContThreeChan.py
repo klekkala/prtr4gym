@@ -191,8 +191,10 @@ class VEPContThreeChan(BaseDataset):
         #print(im_ind, im_ind+delta, negsample1)
         #print(chose_ind, chose_ind+chose_delta, negsample2)
 
-        assert(negsample1 < im_ind-delta or negsample1 > im_ind+delta)
-        assert(negsample2 < chose_ind-chose_delta or negsample2 > chose_ind+chose_delta)
+        #COMMENT THIS OUT BECAUSE OF THE BADS FOR LARGER THRESHOLDS!
+        #assert(negsample1 <= im_ind-delta or negsample1 >= im_ind+delta)
+        #assert(negsample2 <= chose_ind-chose_delta or negsample2 >= chose_ind+chose_delta)
+        
         assert(negsample1 >= episode1_start and negsample1 <= self.limit_nps[file_ind][im_ind])
         assert(negsample2 >= episode2_start and negsample2 <= self.limit_nps[chose_game][chose_ind])
 

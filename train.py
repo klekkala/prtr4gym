@@ -18,6 +18,7 @@ from torch.hub import load_state_dict_from_url
 from arguments import get_args
 # from info_nce import InfoNCE
 import os
+import math
 import random
 import numpy as np
 
@@ -122,10 +123,10 @@ if 'LSTM' in args.model and 'CARLA' in args.model:
         latent_cls.append(z)
 
 # %% Start Training
-for epoch in trange(start_epoch, args.nepoch, leave=False):
+for epoch in trange(start_epoch, math.ceil(args.nepoch), leave=False):
 
     # Start the lr scheduler
-    utils.lr_Linear(optimizer, args.nepoch, epoch, args.lr)
+    utils.lr_Linear(optimizer, math.ceil(args.nepoch), epoch, args.lr)
     loss_iter = []
 
     # contrastive case: for i, (img_batch1, img_batch2, pair) in enumerate(tqdm(trainloader, leave=False)):
@@ -149,7 +150,9 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
         encodernet.train()
 
     for i, traindata in enumerate(tqdm(trainloader, leave=False)):
-
+        
+        if args.nepoch < 1 and i > int(len(trainloader)*args.nepoch):
+            break
 
         if 'CONT' in args.model:
             try:
@@ -334,13 +337,21 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
                 positives = encodernet(torch.squeeze(pos_imgs), torch.squeeze(pos_aux))
                 negatives = encodernet(torch.squeeze(neg_imgs), torch.squeeze(neg_aux))               
             
+            elif '4STACK' in args.model:
+                pos_reshape_val = traindata.to(device) / div_val
+                query_imgs, pos_imgs, neg_imgs = torch.split(pos_reshape_val, 1, dim=1)
+                query = encodernet(torch.squeeze(query_imgs))
+                positives = encodernet(torch.squeeze(pos_imgs))
+                negatives = encodernet(torch.squeeze(neg_imgs))
+
+            #for others.. modify!!
             else:
                 pos_reshape_val = traindata.to(device) / div_val
                 query_imgs, pos_imgs, neg_imgs = torch.split(pos_reshape_val, 1, dim=1)
                 query = encodernet(query_imgs.reshape(query_imgs.shape[0], 1, 84, 84))
                 positives = encodernet(pos_imgs.reshape(pos_imgs.shape[0], 1, 84, 84))
                 negatives = encodernet(neg_imgs.reshape(neg_imgs.shape[0], 1, 84, 84))
-            
+
             # allocat classes for queries, positives and negatives
             posclasses = torch.arange(start=0, end=query.shape[0])
             negclasses = torch.arange(start=query.shape[0], end=query.shape[0] + negatives.shape[0])
@@ -567,4 +578,4 @@ for epoch in trange(start_epoch, args.nepoch, leave=False):
                 'model_state_dict': encodernet.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict()
             }    
-        torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + auxval + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + "_" + str(args.lr) + "_" + str(epoch) + ".pt")
+        torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + auxval + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + "_" + str(args.lr) + "_" + str(args.nepoch) + ".pt")

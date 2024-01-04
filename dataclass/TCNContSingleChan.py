@@ -9,8 +9,8 @@ from IPython import embed
 import torch
 
 class TCNContSingleChan(BaseDataset):
-    def __init__(self, root_dir, pos_distance, transform=None, value=False, episode=True, goal=False):
-        super().__init__(root_dir, transform, action=True, value=value, reward=True, episode=episode, terminal=True, goal=goal, use_lstm=False)
+    def __init__(self, root_dir, pos_distance, transform=None, value=False, episode=True, goal=False, truncated=True):
+        super().__init__(root_dir, transform, action=True, value=value, reward=True, episode=episode, terminal=True, goal=goal, use_lstm=False, truncated=truncated)
 
         self.pos_distance = pos_distance
         assert (self.pos_distance <= 12)
