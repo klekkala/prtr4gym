@@ -9,12 +9,12 @@ def get_args():
 
     parser.add_argument(
         "--arch",
-        choices=["standard", "resnet"],
+        choices=["standard", "resnet", "dtnet"],
         default="standard",
     )
     parser.add_argument(
         "--model",
-        choices=["FPV_RECONBEV_CARLA", "FPV_BEV_CARLA", "BEV_VAE_CARLA", "BEV_LSTM_CARLA", "4STACK_VAE_ATARI", "3CHANRGB_VAE_ATARI101", "1CHAN_VAE_ATARI101", "3CHAN_VAE_ATARI", "1CHAN_VAE_ATARI", "1CHANLSTM_CONT_ATARI", "4STACK_CONT_ATARI", "DUAL_4STACK_CONT_ATARI", "3CHANLSTM_CONT_BEOGYM", "1CHAN_CONT_ATARI", "3CHAN_TCN_BEOGYM", "3CHAN_VIP_BEOGYM", "3CHAN_OVIP_BEOGYM", "1CHAN_VIP_ATARI", "4STACK_VIP_ATARI", "1CHAN_VEP_ATARI", "1CHAN_NVEP_ATARI", "1CHAN_TCN_ATARI", "1CHAN_SOM_ATARI", "1CHAN_OVIP_ATARI", "3CHAN_SOM_BEOGYM", "3CHAN_VEP_BEOGYM", "3CHAN_NVEP_BEOGYM", "3CHAN_VIP_BEOGYM", "4STACK_TCN_ATARI", "4STACK_OTCN_ATARI", "4STACK_VIP_ATARI", "4STACK_NVEP_ATARI", "4STACK_SOM_ATARI"],
+        choices=["FPV_RECONBEV_CARLA", "FPV_BEV_CARLA", "BEV_VAE_CARLA", "BEV_LSTM_CARLA", "4STACK_VAE_ATARI", "3CHANRGB_VAE_ATARI101", "1CHAN_VAE_ATARI101", "3CHAN_VAE_ATARI", "1CHAN_VAE_ATARI", "1CHANLSTM_CONT_ATARI", "4STACK_CONT_ATARI", "DUAL_4STACK_CONT_ATARI", "3CHANLSTM_CONT_BEOGYM", "1CHAN_CONT_ATARI", "3CHAN_TCN_BEOGYM", "3CHAN_VIP_BEOGYM", "3CHAN_OVIP_BEOGYM", "1CHAN_VIP_ATARI", "4STACK_VIP_ATARI", "1CHAN_VEP_ATARI", "1CHAN_NVEP_ATARI", "1CHAN_TCN_ATARI", "1CHAN_SOM_ATARI", "1CHAN_OVIP_ATARI", "3CHAN_SOM_BEOGYM", "3CHAN_VEP_BEOGYM", "3CHAN_NVEP_BEOGYM", "3CHAN_VIP_BEOGYM", "4STACK_TCN_ATARI", "4STACK_OTCN_ATARI", "4STACK_VIP_ATARI", "4STACK_NVEP_ATARI", "4STACK_SOM_ATARI", "3CHAN_TCN_ATARI"],
         default="e2e",
     )
     parser.add_argument(
@@ -82,6 +82,9 @@ def get_args():
     )
     parser.add_argument(
         "--lr", type=float, default=1e-4, help="pretrained results"
+    )
+    parser.add_argument(
+        "--loss", type=str, default="triplet", choices=["triplet", "infonce", "infomax"], help="pretrained results"
     )
 
     args = parser.parse_args()

@@ -35,13 +35,14 @@ def initialize(is_train):
     if 'CARLA' in args.model:
         root_dir = "/home/tmp/kiran/"
     elif 'BEOGYM' in args.model and '3CHAN' in args.model:
+        #root_dir = "/lab/tmpig10f/kiran/expert_3chan_beogym/skill2/"
         root_dir = "/lab/tmpig10f/kiran/expert_3chan_beogym/"
     elif 'BEOGYM' in args.model and '4STACK' in args.model:
         root_dir = "/lab/tmpig10f/kiran/expert_4stack_beogym/"
     elif 'ATARI' in args.model and '4STACK' in args.model:
         root_dir = "/lab/tmpig14c/kiran/expert_4stack_atari/"
     elif 'ATARI' in args.model and '1CHAN' in args.model:
-        root_dir = "/lab/tmpig14c/kiran/expert_1chan_atari/"
+        root_dir = "/lab/tmpig10f/kiran/expert_1chan_atari/"
     else:
         root_dir = "/dev/shm/"
     curr_dir = os.getcwd()
@@ -100,6 +101,10 @@ def initialize(is_train):
             print("using resnet")
             # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
             encodernet = TEncoder(channel_in=1, ch=64, z=512).to(device)
+        elif args.arch == 'dtnet':
+            print("using dtnet")
+            encodernet = TEncoder(channel_in=1, ch=32, z=512).to(device)            
+        
         else:
             encodernet = TEncoder(channel_in=1, ch=32, z=512).to(device)
         print(root_dir, args.expname)
@@ -125,11 +130,22 @@ def initialize(is_train):
             print("using resnet")
             # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
             encodernet = TEncoder(channel_in=1, ch=64, z=512).to(device)
+        elif args.arch == 'dtnet':
+            print("using dtnet")
+            encodernet = Encoder(channel_in=1, ch=32, z=512).to(device)          
         else:
             encodernet = TEncoder(channel_in=1, ch=32, z=512).to(device)
         print(root_dir, args.expname)
         div_val = 255.0
 
+    elif args.model == "3CHAN_TCN_ATARI":
+        negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform)
+        trainset = TCNContSingleChan.TCNContSingleChan(root_dir=root_dir + args.expname, transform=transform, pos_distance=args.max_len)
+        
+        encodernet = TEncoder(channel_in=3, ch=32, z=512).to(device)
+        print(root_dir, args.expname)
+        div_val = 1.0
+    
     elif args.model == "3CHAN_TCN_BEOGYM":
         negset = NegContThreeChan.NegContThreeChan(root_dir=root_dir + args.expname, transform=transform)
         trainset = TCNContThreeChan.TCNContThreeChan(root_dir=root_dir + args.expname, transform=transform, pos_distance=args.max_len, truncated=True)
@@ -151,6 +167,9 @@ def initialize(is_train):
             print("using resnet")
             # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
             encodernet = TEncoder(channel_in=1, ch=64, z=512).to(device)
+        elif args.arch == 'dtnet':
+            print("using dtnet")
+            encodernet = Encoder(channel_in=1, ch=32, z=512).to(device)          
         else:
             encodernet = TEncoder(channel_in=1, ch=32, z=512).to(device)
         print(root_dir, args.expname)
@@ -164,6 +183,9 @@ def initialize(is_train):
             print("using resnet")
             # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
             encodernet = TEncoder(channel_in=1, ch=64, z=512).to(device)
+        elif args.arch == 'dtnet':
+            print("using dtnet")
+            encodernet = Encoder(channel_in=1, ch=32, z=512).to(device)         
         else:
             encodernet = TEncoder(channel_in=1, ch=32, z=512).to(device)
         print(root_dir, args.expname)
@@ -203,6 +225,9 @@ def initialize(is_train):
             print("using resnet")
             # encodernet = ResEncoder(channel_in=4, ch=64, z=512).to(device)
             encodernet = TEncoder(channel_in=1, ch=64, z=512).to(device)
+        elif args.arch == 'dtnet':
+            print("using dtnet")
+            encodernet = Encoder(channel_in=1, ch=32, z=512).to(device)         
         else:
             encodernet = TEncoder(channel_in=1, ch=32, z=512).to(device)
         print(root_dir, args.expname)
@@ -379,6 +404,9 @@ def initialize(is_train):
         negloader, posloader = utils.get_data_STL10(negset, args.train_batch_size, transform, posset, args.sample_batch_size)
     
     elif is_train and 'VEP' in args.model or 'VIP' in args.model or 'TCN' in args.model or 'SOM' in args.model:
+        
+        if 'SOM' in args.model:
+            assert(args.sample_batch_size != 0)
         if args.sample_batch_size > 0:
             negloader, trainloader = utils.get_data_STL10(negset, args.sample_batch_size, transform, trainset, args.sample_batch_size)
         else:

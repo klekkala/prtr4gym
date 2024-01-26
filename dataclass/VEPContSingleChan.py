@@ -26,7 +26,7 @@ class VEPContSingleChan(BaseDataset):
         self.negtype = negtype
 
         #anywhere to the right
-        assert(self.max_len < 10 and self.max_len >= -1.0)
+        assert(self.max_len < 10 and self.max_len >= -1.0 and self.max_len != 0.0)
         print(max_len)
 
 
@@ -43,14 +43,36 @@ class VEPContSingleChan(BaseDataset):
             return chose_ind
         elif chose_ind + 1 == end_val:
             return chose_ind+1
-        
-        minval = self.value_nps[chose_game][chose_ind+1]
-        minind = chose_ind+1
-        for i in range(chose_ind + 1, end_val):
-            if minval > abs(vlimit - self.value_nps[chose_game][i]):
-                minind = i
-                minval = abs(vlimit - self.value_nps[chose_game][i])
+       
+        #print(vlimit)
+        if vlimit == -1:
+            minind = random.randint(chose_ind+1, end_val)
 
+        else:
+            limind = chose_ind+1
+            before = self.value_nps[chose_game][chose_ind]
+            for i in range(chose_ind + 1, end_val):
+                #Before 25 Jan 2024
+                #if minval > abs(vlimit - self.value_nps[chose_game][i]):
+                #    minind = i
+                #    minval = abs(vlimit - self.value_nps[chose_game][i])
+                
+                #On/After 25 Jan 2024
+                if self.value_nps[chose_game][i] > vlimit:
+                    break
+                else:
+                    limind = i
+
+            if limind-1 > chose_ind:
+                minind = random.randint(chose_ind+1, limind-1)
+            else:
+                minind = chose_ind+1
+            minval = self.value_nps[chose_game][minind]
+       
+            assert(minind <= limind)
+            if minval > vlimit:
+                print("val exceeded", self.value_nps[chose_game][chose_ind], before, vlimit, minval, chose_ind, minind)
+        
         assert(minind > chose_ind)
         assert(minind <= end_val)
         return minind
@@ -97,14 +119,26 @@ class VEPContSingleChan(BaseDataset):
 
         episode1_start = self.id_dict[file_ind][self.episode_nps[file_ind][im_ind]]
 
-        #FIND THE ELEMENT THAT HAS THE CLOSEST VALUE TO VALUE+THRESHOLD WITHIN THE MAX DISTANCE MEASURE
-        delta = random.randint(im_ind, self.lin_search(im_ind, file_ind, value + self.threshold, int(self.max_len))) - im_ind
+        if self.threshold == -1:
+            #Before 25 Jan 2024
+            #delta = random.randint(im_ind, self.lin_search(im_ind, file_ind, -1, int(self.max_len))) - im_ind
+            #After 25 Jan 2024
+            delta = self.lin_search(im_ind, file_ind, -1, int(self.max_len)) - im_ind
+        else:
+            #FIND THE ELEMENT THAT HAS THE CLOSEST VALUE TO VALUE+THRESHOLD WITHIN THE MAX DISTANCE MEASURE
+            #Before 25 Jan 2024
+            #delta = random.randint(im_ind, self.lin_search(im_ind, file_ind, value + self.threshold, int(self.max_len))) - im_ind
+            #After 25 Jan 2024
+            delta = self.lin_search(im_ind, file_ind, value + self.threshold, int(self.max_len)) - im_ind
+        
+
+
         assert(delta >= 0)
         
 
         next_value = self.value_nps[file_ind][im_ind + delta]
 
-        #assert(next_value > value)
+        #assert(next_value >= value)
         #assert(abs(next_value - value) <= self.threshold)
 
         #debug purposes
@@ -130,6 +164,7 @@ class VEPContSingleChan(BaseDataset):
         val_ind = bisect.bisect_left(val_list, value)
         nearest_value = val_list[val_ind]
         #print(nearest_value, value)
+        
         if nearest_value - value > .1:
             print(value, nearest_value, file_ind, chose_game)
 
@@ -142,13 +177,17 @@ class VEPContSingleChan(BaseDataset):
 
         episode2_start = self.id_dict[chose_game][self.episode_nps[chose_game][chose_ind]]
 
-
-        chose_delta = self.lin_search(chose_ind, chose_game, nearest_value + abs(next_value - value), int(self.dthresh)) - chose_ind
-
+        #Before 25 Jan
+        #chose_delta = self.lin_search(chose_ind, chose_game, nearest_value + abs(next_value - value), int(self.dthresh)) - chose_ind
+        #After 25 Jan
+        if self.threshold == -1:
+            chose_delta = self.lin_search(chose_ind, chose_game, -1, int(self.dthresh)) - chose_ind
+        else:
+            chose_delta = self.lin_search(chose_ind, chose_game, nearest_value + self.threshold, int(self.dthresh)) - chose_ind
         
 
         assert(chose_delta >= 0)
-        
+        #print(delta, chose_delta)
         #if elind > self.max_len-1 or elind < 0 or abs(self.svalue_nps[file_ind][0, elind] - value) > self.threshold or elind == im_ind:
         #    if self.revind_nps[file_ind][im_ind] == 0:
         #        elind = int(self.revind_nps[file_ind][im_ind]) + 1
@@ -180,8 +219,11 @@ class VEPContSingleChan(BaseDataset):
         #print(im_ind, im_ind+delta, negsample1)
         #print(chose_ind, chose_ind+chose_delta, negsample2)
 
-        assert(negsample1 < im_ind-delta or negsample1 > im_ind+delta)
-        assert(negsample2 < chose_ind-chose_delta or negsample2 > chose_ind+chose_delta)
+        #Commented these out
+        #assert(negsample1 < im_ind-delta or negsample1 > im_ind+delta)
+        #assert(negsample2 < chose_ind-chose_delta or negsample2 > chose_ind+chose_delta)
+        
+
         assert(negsample1 >= episode1_start and negsample1 <= self.limit_nps[file_ind][im_ind])
         assert(negsample2 >= episode2_start and negsample2 <= self.limit_nps[chose_game][chose_ind])
 

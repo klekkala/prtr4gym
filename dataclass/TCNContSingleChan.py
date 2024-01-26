@@ -22,7 +22,7 @@ class TCNContSingleChan(BaseDataset):
         img, value, episode = [], [], []
         file_ind = int(item/1000000)
         im_ind = item - (file_ind*1000000)
-        
+
         left_pos = self.pos_distance
         right_pos = self.pos_distance
 

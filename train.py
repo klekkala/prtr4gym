@@ -16,7 +16,7 @@ import imageio as iio
 from IPython import embed
 from torch.hub import load_state_dict_from_url
 from arguments import get_args
-# from info_nce import InfoNCE
+from info_nce import InfoNCE
 import os
 import math
 import random
@@ -102,12 +102,21 @@ elif 'LSTM' in args.model and 'CARLA' in args.model:
 elif 'VIP' in args.model:
     loss_func = utils.vip_loss
 elif 'TCN' in args.model or 'SOM' in args.model:
-    loss_func = losses.ContrastiveLoss()
+    if args.loss == "triplet":
+        loss_func = losses.ContrastiveLoss()
+    elif args.loss == "infonce":
+        loss_func = InfoNCE(negative_mode='unpaired')
 
 elif 'VEP' in args.model:
-    loss_func = losses.ContrastiveLoss()
+    if args.loss == "triplet":
+        loss_func = losses.ContrastiveLoss()
+    elif args.loss == "infonce":
+        loss = InfoNCE(negative_mode='unpaired')
 else:
     loss_func = utils.vae_loss
+
+
+print(loss_func)
 
 if 'DUAL' in args.model:
     log_write(encodernet, 'w')
@@ -328,7 +337,7 @@ for epoch in trange(start_epoch, math.ceil(args.nepoch), leave=False):
 
             
 
-            if '3CHAN' in args.model:
+            if '3CHAN_TCN_BEOGYM' in args.model:
                 pos_reshape_val = traindata[0].to(device) / div_val
                 pos_aux = traindata[1].to(device)
                 query_imgs, pos_imgs, neg_imgs = torch.split(pos_reshape_val, 1, dim=1)
@@ -346,6 +355,7 @@ for epoch in trange(start_epoch, math.ceil(args.nepoch), leave=False):
 
             #for others.. modify!!
             else:
+                #embed()
                 pos_reshape_val = traindata.to(device) / div_val
                 query_imgs, pos_imgs, neg_imgs = torch.split(pos_reshape_val, 1, dim=1)
                 query = encodernet(query_imgs.reshape(query_imgs.shape[0], 1, 84, 84))
@@ -357,6 +367,8 @@ for epoch in trange(start_epoch, math.ceil(args.nepoch), leave=False):
             negclasses = torch.arange(start=query.shape[0], end=query.shape[0] + negatives.shape[0])
             loss = loss_func(torch.cat([query, positives, negatives], axis=0),
                                 torch.cat([posclasses, posclasses, negclasses], axis=0))
+            #loss = loss_func(query, positives, negatives)
+            #print("infonce")
 
         elif 'SOM' in args.model:
 
@@ -380,6 +392,17 @@ for epoch in trange(start_epoch, math.ceil(args.nepoch), leave=False):
                 query = encodernet(torch.squeeze(query_imgs), torch.squeeze(query_aux))
                 positives = encodernet(torch.squeeze(pos_imgs), torch.squeeze(pos_aux))
                 negatives = encodernet(torch.squeeze(neg_reshape_val), torch.squeeze(neg_aux))
+
+            elif '4STACK' in args.model:
+                neg_reshape_val = negdata.to(device) / div_val
+                pos_reshape_val = traindata.to(device) / div_val
+
+                query_imgs, pos_imgs = torch.split(pos_reshape_val, 1, dim=1)
+                neg_imgs = neg_reshape_val
+
+                query = encodernet(torch.squeeze(query_imgs))
+                positives = encodernet(torch.squeeze(pos_imgs))
+                negatives = encodernet(torch.squeeze(neg_imgs))
 
             else:
                 neg_reshape_val = negdata.to(device) / div_val
@@ -417,7 +440,6 @@ for epoch in trange(start_epoch, math.ceil(args.nepoch), leave=False):
                 train_aux = traindata[1].to(device)
 
                 #each of the items on the left is of size Bx2
-                #embed()
                 query_imgs, pos_imgs, neg_imgs, goal_imgs = torch.split(train_reshape_val, 2, dim=1)
                 query_aux, pos_aux, neg_aux, goal_aux = torch.split(train_aux, 2, dim=1)
 
@@ -426,6 +448,14 @@ for epoch in trange(start_epoch, math.ceil(args.nepoch), leave=False):
                 negatives = encodernet(torch.reshape(neg_imgs, (neg_imgs.shape[0]*neg_imgs.shape[1], 3, 84, 84)), torch.reshape(neg_aux, (neg_aux.shape[0]*neg_aux.shape[1], 2)))
 
                 goals = encodernet(torch.reshape(goal_imgs, (goal_imgs.shape[0]*goal_imgs.shape[1], 3, 84, 84)), torch.reshape(goal_aux, (goal_aux.shape[0]*goal_aux.shape[1], 2)))
+
+            elif '4STACK' in args.model:
+                pos_reshape_val = traindata.to(device) / div_val
+                query_imgs, pos_imgs, neg_imgs, goal_imgs = torch.split(pos_reshape_val, 2, dim=1)
+                query = encodernet(torch.squeeze(query_imgs).reshape(query_imgs.shape[0]*query_imgs.shape[1], 4, 84, 84))
+                positives = encodernet(torch.squeeze(pos_imgs).reshape(pos_imgs.shape[0]*pos_imgs.shape[1], 4, 84, 84))
+                negatives = encodernet(torch.squeeze(neg_imgs).reshape(neg_imgs.shape[0]*neg_imgs.shape[1], 4, 84, 84))
+                goals = encodernet(torch.squeeze(goal_imgs).reshape(goal_imgs.shape[0]*goal_imgs.shape[1], 4, 84, 84))
 
             else:
 
@@ -447,6 +477,8 @@ for epoch in trange(start_epoch, math.ceil(args.nepoch), leave=False):
             if 'NVEP' in args.model:
                 loss = loss_func(torch.cat([query, positives, negatives], axis=0),
                     torch.cat([posclasses.flatten(), posclasses.flatten(), negclasses.flatten()], axis=0))
+                #loss = loss_func(query, positives, negatives)
+
             else:
 
                 loss = loss_func(torch.cat([query, positives, negatives, goals], axis=0),
@@ -578,4 +610,4 @@ for epoch in trange(start_epoch, math.ceil(args.nepoch), leave=False):
                 'model_state_dict': encodernet.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict()
             }    
-        torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + auxval + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + "_" + str(args.lr) + "_" + str(args.nepoch) + ".pt")
+        torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + auxval + "_" + str(args.loss) + "_" + str(args.train_batch_size) + "_" + str(args.sample_batch_size) + "_" + str(args.lr) + "_" + str(args.nepoch) + ".pt")

@@ -32,9 +32,9 @@ class BaseDataset(Dataset):
         terminal_file = 'terminal_truncated.npy' if truncated else 'terminal'
         value_file = 'value_truncated.npy' if truncated else 'value'
         value_map = 'sorted_value_mapping_truncated' if truncated else 'value_mapping'
-        id_dict_file = 'id_dict_truncated.npy' if truncated else 'id_dict'
-        limit_file = 'limit_truncated.npy' if truncated else 'limit'
-        episode_file = 'episode_truncated.npy' if truncated else 'episode'
+        id_dict_file = 'id_dict_truncated.npy' if truncated else 'id_dict.npy'
+        limit_file = 'limit_truncated.npy' if truncated else 'limit.npy'
+        episode_file = 'episode_truncated.npy' if truncated else 'episode.npy'
         
         print(self.root_dir)
         exten = ""
@@ -44,10 +44,10 @@ class BaseDataset(Dataset):
         for root, subdirs, files in os.walk(self.root_dir):
             print(files)
             if 'observation' + exten in files:
-                print(root)
                 #testing for airraid [:102585]
                 self.obs_nps.append(np.load(root + '/observation' + exten, mmap_mode='r'))
-                # self.obs_nps.append(np.load(root + '/observation' + exten, mmap_mode='r')[:10000,:,:,0])
+                #self.obs_nps.append(np.load(root + '/observation' + exten, mmap_mode='r')[:10000,:,:,0])
+
                 if action:
                     self.action_nps.append(np.load(root + '/action' + exten, mmap_mode='r'))
 
@@ -99,7 +99,11 @@ class BaseDataset(Dataset):
                     ab = np.load(root + '/id_dict.npy', allow_pickle=True)
                     self.id_dict.append(ab[()])
 
-
+        
+        if "rllib" in self.root_dir:
+            for i in range(len(self.obs_nps)):
+                self.obs_nps[i] = np.moveaxis(self.obs_nps[i], -1, 1)
+        
         for i in range(len(self.obs_nps)):
             if self.use_lstm:
                 if len(self.each_len) == 0:
@@ -118,7 +122,7 @@ class BaseDataset(Dataset):
         if max_len != None:
             print("setting max_len")
             self.lines = max_len
-        print("blah blah")
+        
         self.lines = self.max_len
         self.num_files = len(self.obs_nps)
         print("truncated", truncated)

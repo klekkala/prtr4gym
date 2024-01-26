@@ -116,6 +116,42 @@ class VAE(nn.Module):
         #return mu
 
 
+"""
+class Encoder(TEncoder):
+    def __init__(self, channel_in=3, ch=16, z=64, h_dim=512):
+        super(Encoder, self).__init__(channel_in=channel_in, ch=ch, z=z, h_dim=h_dim)
+        self.adapter = nn.Conv2d(z, z, 1, 1)
+
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.conv_mu(x)
+        x = self.adapter(x)
+        x = torch.flatten(x, start_dim=1)
+        return x
+"""
+
+
+class Encoder(nn.Module):
+    def __init__(self, channel_in=3, ch=16, z=64, h_dim=512):
+        super(Encoder, self).__init__()
+        self.encoder = nn.Sequential(
+                nn.Conv2d(channel_in, 32, 8, stride=4, padding=0),
+                nn.ReLU(),
+                nn.Conv2d(32, 64, 4, stride=2, padding=0),
+                nn.ReLU(),
+                nn.Conv2d(64, 64, 3, stride=1, padding=0),
+                nn.ReLU(),
+                nn.Flatten(),
+                nn.Linear(3136, z),
+                nn.Tanh()
+                )
+
+    def forward(self, x):
+        x = self.encoder(x)
+        return x
+
+
 
 
 class TEncoder(nn.Module):
@@ -135,24 +171,9 @@ class TEncoder(nn.Module):
         self.conv_mu = nn.Conv2d(ch*32, z, 1, 1)
         
     def forward(self, x):
+        #print(torch.max(x))
         x = self.encoder(x)
         x = self.conv_mu(x)
-        x = torch.flatten(x, start_dim=1)
-        return x
-
-
-
-
-class Encoder(TEncoder):
-    def __init__(self, channel_in=3, ch=16, z=64, h_dim=512):
-        super(Encoder, self).__init__(channel_in=channel_in, ch=ch, z=z, h_dim=h_dim)
-        self.adapter = nn.Conv2d(z, z, 1, 1)
-
-
-    def forward(self, x):
-        x = self.encoder(x)
-        x = self.conv_mu(x)
-        x = self.adapter(x)
         x = torch.flatten(x, start_dim=1)
         return x
 
