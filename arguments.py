@@ -41,13 +41,16 @@ def get_args():
         "--expname", type=str, default="all", help="pretrained results"
     )
     parser.add_argument(
-        "--negtype", type=str, default="same", help="pretrained results"
+        "--negtype", type=str, default="nsame", help="pretrained results"
     )
     parser.add_argument(
         "--maxseq", type=int, default=7500, help="pretrained results"
     )
     parser.add_argument(
-        "--nepoch", type=float, default=1, help="pretrained results"
+        "--nepoch", type=int, default=1, help="pretrained results"
+    )
+    parser.add_argument(
+        "--ckptfreq", type=float, default=1, help="pretrained results"
     )
     #201 originally
     parser.add_argument(
@@ -72,10 +75,13 @@ def get_args():
         "--temperature", type=float, default=.1, help="GPU ID"
     )
     parser.add_argument(
-        "--sample_batch_size", type=int, default=512, help="pretrained results"
+        "--sample_batch_size", type=int, default=0, help="pretrained results"
     )
     parser.add_argument(
-        "--train_batch_size", type=int, default=512, help="pretrained results"
+        "--neg_batch_size", type=int, default=0, help="pretrained results"
+    )
+    parser.add_argument(
+        "--train_batch_size", type=int, default=32, help="pretrained results"
     )
     parser.add_argument(
         "--kl_weight", type=float, default=0.01, help="pretrained results"
@@ -84,7 +90,7 @@ def get_args():
         "--lr", type=float, default=1e-4, help="pretrained results"
     )
     parser.add_argument(
-        "--loss", type=str, default="triplet", choices=["triplet", "infonce", "infomax"], help="pretrained results"
+        "--loss", type=str, default="triplet", choices=["triplet", "infonce", "infoncepair", "infomax"], help="pretrained results"
     )
 
     args = parser.parse_args()

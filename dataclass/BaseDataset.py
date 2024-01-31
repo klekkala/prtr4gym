@@ -127,5 +127,6 @@ class BaseDataset(Dataset):
         self.num_files = len(self.obs_nps)
         print("truncated", truncated)
         
+        #embed()
     def __len__(self):
         return self.lines - 1

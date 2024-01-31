@@ -13,17 +13,17 @@ import torch
 
 
 class VEPContSingleChan(BaseDataset):
-    def __init__(self, root_dir, threshold, max_len, dthresh, negtype, transform=None, value=True, episode=True, goal=False):
+    def __init__(self, root_dir, threshold, max_len, sample_batch, negtype, transform=None, value=True, episode=True, goal=False):
         super().__init__(root_dir, transform, action=True, value=value, reward=True, episode=episode, terminal=True, goal=goal, use_lstm=False)
         #self.value_thresh = value_thresh
         print(root_dir)
         self.max_len = max_len
-        self.dthresh = dthresh
-        #dthresh and thresh is not used currently
-        self.threshold = threshold 
-        #self.dthresh = dthresh
+        self.sample_batch = sample_batch
 
+        self.threshold = threshold 
         self.negtype = negtype
+
+        assert(self.threshold >= 0.05)
 
         #anywhere to the right
         assert(self.max_len < 10 and self.max_len >= -1.0 and self.max_len != 0.0)
@@ -52,12 +52,7 @@ class VEPContSingleChan(BaseDataset):
             limind = chose_ind+1
             before = self.value_nps[chose_game][chose_ind]
             for i in range(chose_ind + 1, end_val):
-                #Before 25 Jan 2024
-                #if minval > abs(vlimit - self.value_nps[chose_game][i]):
-                #    minind = i
-                #    minval = abs(vlimit - self.value_nps[chose_game][i])
-                
-                #On/After 25 Jan 2024
+
                 if self.value_nps[chose_game][i] > vlimit:
                     break
                 else:
@@ -70,8 +65,8 @@ class VEPContSingleChan(BaseDataset):
             minval = self.value_nps[chose_game][minind]
        
             assert(minind <= limind)
-            if minval > vlimit:
-                print("val exceeded", self.value_nps[chose_game][chose_ind], before, vlimit, minval, chose_ind, minind)
+            if minval > vlimit + 0.01:
+                print("val exceeded", before, minval, vlimit)
         
         assert(minind > chose_ind)
         assert(minind <= end_val)
@@ -84,8 +79,10 @@ class VEPContSingleChan(BaseDataset):
         #negative should be more far than the positive.
         #it need not be far as in 2*delta
         if i+delta + 1 <= end:
-            if self.negtype == "same":
+            if self.negtype == "nsame":
                 return random.randint(i+delta+1, end)
+            else:
+                raise NotImplementedError
             choices.append(random.randint(i+delta+1, end))
 
         if i-delta-1 >= start:
@@ -101,140 +98,119 @@ class VEPContSingleChan(BaseDataset):
 
     def __getitem__(self, item):
         img, value, episode = [], [], []
+        allnegsamples, alldeltas, allinds = [], [], []
+
         #need to change this to bisect
         file_ind = int(item/1000000)
-        im_ind = item - (file_ind*1000000)
+        allinds.append(item - (file_ind*1000000))
         
-
+        #later
+        #file_ind = bisect.bisect_right(self.each_len, item)
+        #if file_ind == 0:
+        #    im_ind = item
+        #else:
+        #    im_ind = item - self.each_len[file_ind-1]       
+        #allinds.append(im_ind)
 
         assert (len(self.obs_nps) > 1)
         #print(im_ind, deltat, self.limit_nps[file_ind][im_ind], self.terminal_nps[file_ind][self.limit_nps[file_ind][im_ind]])
-        assert(self.terminal_nps[file_ind][self.limit_nps[file_ind][im_ind]] == 1)
+        assert(self.terminal_nps[file_ind][self.limit_nps[file_ind][allinds[-1]]] == 1)
 
 
         #self.action.append(self.action_nps[file_ind][im_ind].astype(np.uint8))
-        value = self.value_nps[file_ind][im_ind].astype(np.float32)
-        #next_value = rand_sample_until(self.treshold)
+        value = self.value_nps[file_ind][allinds[-1]].astype(np.float32)
         
+        if value == 0.0:
+            #replace the element if the value is 0.0
+            while value == 0:
+                curind = random.randint(0, 1000000)
+                value = self.value_nps[file_ind][curind].astype(np.float32)
+        
+            allinds[-1] = curind
 
-        episode1_start = self.id_dict[file_ind][self.episode_nps[file_ind][im_ind]]
+        assert(value != 0.0)
+        episode1_start = self.id_dict[file_ind][self.episode_nps[file_ind][allinds[-1]]]
 
         if self.threshold == -1:
-            #Before 25 Jan 2024
-            #delta = random.randint(im_ind, self.lin_search(im_ind, file_ind, -1, int(self.max_len))) - im_ind
-            #After 25 Jan 2024
-            delta = self.lin_search(im_ind, file_ind, -1, int(self.max_len)) - im_ind
+            delta = self.lin_search(allinds[-1], file_ind, -1, int(self.max_len)) - allinds[-1]
         else:
             #FIND THE ELEMENT THAT HAS THE CLOSEST VALUE TO VALUE+THRESHOLD WITHIN THE MAX DISTANCE MEASURE
-            #Before 25 Jan 2024
-            #delta = random.randint(im_ind, self.lin_search(im_ind, file_ind, value + self.threshold, int(self.max_len))) - im_ind
-            #After 25 Jan 2024
-            delta = self.lin_search(im_ind, file_ind, value + self.threshold, int(self.max_len)) - im_ind
+            delta = self.lin_search(allinds[-1], file_ind, value + self.threshold, int(self.max_len)) - allinds[-1]
         
 
-
-        assert(delta >= 0)
-        
-
-        next_value = self.value_nps[file_ind][im_ind + delta]
-
-        #assert(next_value >= value)
-        #assert(abs(next_value - value) <= self.threshold)
-
-        #debug purposes
-        #orig = self.svalue_nps[file_ind][:, int(self.revind_nps[file_ind][im_ind])]
-        #print(self.value_nps[file_ind][im_ind], orig[0])
-        #assert(self.value_nps[file_ind][im_ind] == orig[0])
-
-        #randomly sample an index with the nearest value to the current value. (OLD method)
-        #elind = int(self.revind_nps[file_ind][im_ind] + random.randint(-20, 20))
+        alldeltas.append(delta)
+        allnegsamples.append(self.find_neg(file_ind, allinds[-1], delta, episode1_start, self.limit_nps[file_ind][allinds[-1]]))
+        assert(alldeltas[-1] >= 0)
+        assert(allnegsamples[-1] >= episode1_start and allnegsamples[-1] <= self.limit_nps[file_ind][allinds[-1]])
+        assert(self.limit_nps[file_ind][allinds[-1]] == self.limit_nps[file_ind][allinds[-1]+alldeltas[-1]])
+        assert(self.limit_nps[file_ind][episode1_start] == self.limit_nps[file_ind][allinds[-1]] == self.limit_nps[file_ind][allinds[-1]+alldeltas[-1]])
+        next_value = self.value_nps[file_ind][allinds[-1] + alldeltas[-1]]
 
 
 
 
-        #GOING TO OTHER GAME
-        #randomly sample a game other than
+        #the next 1 and 3 lines were enforced until 1/27/2024 18:18PM. After this time, the condition was removed
+        #randomly sample n-1 games other than the current game
         gamelist = list(range(len(self.obs_nps)))
-        gamelist.remove(file_ind) 
-        chose_game = random.choice(gamelist)
-
-        #get the nearest value function in the sorted list
-        val_list = list(self.value_map[chose_game].keys())
-
-        val_ind = bisect.bisect_left(val_list, value)
-        nearest_value = val_list[val_ind]
-        #print(nearest_value, value)
-        
-        if nearest_value - value > .1:
-            print(value, nearest_value, file_ind, chose_game)
-
-        #get the value in the corresponding game
-        chose_ind = random.choice(self.value_map[chose_game][nearest_value])
-        assert(abs(nearest_value - self.value_nps[chose_game][chose_ind]) < .05)
-
-        #get the delta
-        assert(chose_ind <= self.limit_nps[chose_game][chose_ind])
-
-        episode2_start = self.id_dict[chose_game][self.episode_nps[chose_game][chose_ind]]
-
-        #Before 25 Jan
-        #chose_delta = self.lin_search(chose_ind, chose_game, nearest_value + abs(next_value - value), int(self.dthresh)) - chose_ind
-        #After 25 Jan
-        if self.threshold == -1:
-            chose_delta = self.lin_search(chose_ind, chose_game, -1, int(self.dthresh)) - chose_ind
-        else:
-            chose_delta = self.lin_search(chose_ind, chose_game, nearest_value + self.threshold, int(self.dthresh)) - chose_ind
-        
-
-        assert(chose_delta >= 0)
-        #print(delta, chose_delta)
-        #if elind > self.max_len-1 or elind < 0 or abs(self.svalue_nps[file_ind][0, elind] - value) > self.threshold or elind == im_ind:
-        #    if self.revind_nps[file_ind][im_ind] == 0:
-        #        elind = int(self.revind_nps[file_ind][im_ind]) + 1
-        #    else: 
-        #        elind = int(self.revind_nps[file_ind][im_ind]) - 1
-
-
-        assert(self.limit_nps[file_ind][im_ind] == self.limit_nps[file_ind][im_ind+delta])
-        assert(self.limit_nps[chose_game][chose_ind] == self.limit_nps[chose_game][chose_ind+chose_delta])
-        #print(value, next_value, delta, self.max_len*game1_max_len, nearest_value, self.value_nps[chose_game][chose_ind + chose_delta], chose_delta, self.max_len*game2_max_len)
-        #print(value, next_value, nearest_value, self.value_nps[chose_game][chose_ind + chose_delta])
-        #print(delta, chose_delta)
-        
-        negsample1 = self.find_neg(file_ind, im_ind, delta, episode1_start, self.limit_nps[file_ind][im_ind])
-        negsample2 = self.find_neg(chose_game, chose_ind, chose_delta, episode2_start, self.limit_nps[chose_game][chose_ind])
-        #print(negsample1, im_ind, im_ind+delta)
-
-        #WHEN IN DOUBT PRINT THIS
-        #print(delta, negsample1-im_ind, chose_delta, negsample2-chose_ind)
+        #gamelist.remove(file_ind) 
+        chose_games = random.choices(gamelist, k=self.sample_batch-1)
+        chose_games = [file_ind] + chose_games
         
         
-        #check if deltas are within permissible range
-        #assert(delta <= .3*game1_max_len)
-        #assert(chose_delta <= .3*game2_max_len)
-
-        assert(self.limit_nps[file_ind][episode1_start] == self.limit_nps[file_ind][im_ind] == self.limit_nps[file_ind][im_ind+delta])
-        assert(self.limit_nps[chose_game][episode2_start] == self.limit_nps[chose_game][chose_ind] == self.limit_nps[chose_game][chose_ind+chose_delta])
-
-        #print(im_ind, im_ind+delta, negsample1)
-        #print(chose_ind, chose_ind+chose_delta, negsample2)
-
-        #Commented these out
-        #assert(negsample1 < im_ind-delta or negsample1 > im_ind+delta)
-        #assert(negsample2 < chose_ind-chose_delta or negsample2 > chose_ind+chose_delta)
         
+        for i in range(1, len(chose_games)):
 
-        assert(negsample1 >= episode1_start and negsample1 <= self.limit_nps[file_ind][im_ind])
-        assert(negsample2 >= episode2_start and negsample2 <= self.limit_nps[chose_game][chose_ind])
+            #get the nearest value function in the sorted list
+            val_list = list(self.value_map[chose_games[i]].keys())
 
-        #print(game_ind, file_ind)
-        img = [np.expand_dims(self.obs_nps[file_ind][im_ind].astype(np.float32), axis=0)
-                    ,np.expand_dims(self.obs_nps[chose_game][chose_ind].astype(np.float32), axis=0)
-                    ,np.expand_dims(self.obs_nps[file_ind][im_ind + delta].astype(np.float32), axis=0)
-                    ,np.expand_dims(self.obs_nps[chose_game][chose_ind + chose_delta].astype(np.float32), axis=0)
-                    ,np.expand_dims(self.obs_nps[file_ind][negsample1].astype(np.float32), axis=0)
-                    ,np.expand_dims(self.obs_nps[chose_game][negsample2].astype(np.float32), axis=0)]
-       
-        img.append(np.expand_dims(self.obs_nps[file_ind][self.limit_nps[file_ind][im_ind]].astype(np.float32), axis=0))
-        img.append(np.expand_dims(self.obs_nps[chose_game][self.limit_nps[chose_game][chose_ind]].astype(np.float32), axis=0))
+            val_ind = bisect.bisect_left(val_list, value)
+            nearest_value = val_list[val_ind]
+            #print(nearest_value, value)
+        
+            if nearest_value - value > .1:
+                print(value, nearest_value, chose_games[0], chose_games[i])
+
+            #get the value in the corresponding game
+            allinds.append(random.choice(self.value_map[chose_games[i]][nearest_value]))
+            assert(abs(nearest_value - self.value_nps[chose_games[i]][allinds[-1]]) < .05)
+
+            #get the delta
+            assert(allinds[-1] <= self.limit_nps[chose_games[i]][allinds[-1]])
+
+            episode_start = self.id_dict[chose_games[i]][self.episode_nps[chose_games[i]][allinds[-1]]]
+
+
+            if self.threshold == -1:
+                alldeltas.append(self.lin_search(allinds[-1], chose_games[i], -1, int(self.max_len)) - allinds[-1])
+            else:
+                alldeltas.append(self.lin_search(allinds[-1], chose_games[i], nearest_value + self.threshold, int(self.max_len)) - allinds[-1])
+            
+
+            assert(alldeltas[-1] >= 0)
+            assert(self.limit_nps[chose_games[i]][allinds[-1]] == self.limit_nps[chose_games[i]][allinds[-1]+alldeltas[-1]])
+
+            
+            allnegsamples.append(self.find_neg(chose_games[i], allinds[-1], alldeltas[-1], episode_start, self.limit_nps[chose_games[i]][allinds[-1]]))
+
+            
+            assert(self.limit_nps[chose_games[i]][episode_start] == self.limit_nps[chose_games[i]][allinds[-1]] == self.limit_nps[chose_games[i]][allinds[-1]+alldeltas[-1]])
+            assert(allnegsamples[-1] >= episode_start and allnegsamples[-1] <= self.limit_nps[chose_games[i]][allinds[-1]])
+
+
+
+
+
+        img = [0]*self.sample_batch*3
+        assert(len(chose_games) == self.sample_batch)
+        #print(allinds, alldeltas, allnegsamples)
+        for i in range(self.sample_batch):
+            #print(game_ind, file_ind)       
+            #anchor
+            img[i] = np.expand_dims(self.obs_nps[chose_games[i]][allinds[i]].astype(np.float32), axis=0)
+            #positive
+            img[i+self.sample_batch] = np.expand_dims(self.obs_nps[chose_games[i]][allinds[i] + alldeltas[i]].astype(np.float32), axis=0)
+            #negative
+            img[i+2*self.sample_batch] = np.expand_dims(self.obs_nps[chose_games[i]][allnegsamples[i]].astype(np.float32), axis=0)
+ 
+
         return np.stack(img, axis=0)

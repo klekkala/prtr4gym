@@ -110,13 +110,31 @@ elif 'TCN' in args.model or 'SOM' in args.model:
 elif 'VEP' in args.model:
     if args.loss == "triplet":
         loss_func = losses.ContrastiveLoss()
+    elif args.loss == "infoncepair":
+        loss_func = InfoNCE(negative_mode='paired')
     elif args.loss == "infonce":
-        loss = InfoNCE(negative_mode='unpaired')
+        loss_func = InfoNCE(negative_mode='unpaired')
+    else:
+        raise NotImplementedError
+
 else:
     loss_func = utils.vae_loss
 
 
 print(loss_func)
+
+if 'VAE' in args.model:
+    auxval = str(args.kl_weight)
+elif 'VIP' in args.model:
+    auxval = str(args.max_len) + '_' + str(args.min_len)
+elif 'VEP' in args.model:
+    auxval = str(args.max_len) + '_' + str(args.temperature) + '_' + str(args.sample_batch_size) + '_' + str(args.negtype)
+elif 'TCN' in args.model:
+    auxval = str(args.max_len)
+elif 'SOM' in args.model:
+    auxval = str(args.sgamma)
+else:
+    auxval = str(args.temperature)
 
 if 'DUAL' in args.model:
     log_write(encodernet, 'w')
@@ -158,10 +176,29 @@ for epoch in trange(start_epoch, math.ceil(args.nepoch), leave=False):
     else:
         encodernet.train()
 
+    ckptfreq = args.ckptfreq
     for i, traindata in enumerate(tqdm(trainloader, leave=False)):
         
-        if args.nepoch < 1 and i > int(len(trainloader)*args.nepoch):
-            break
+        if i > int(len(trainloader)*ckptfreq):
+            print("saving checkpoint")
+            if 'FPV' in args.model:
+                save_dict = {
+                    'epoch': epoch,
+                    'loss_log': loss_log,
+                    'fpv_state_dict': fpvencoder.state_dict(),
+                    'bev_state_dict': bevencoder.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict()
+                }
+            else:
+                save_dict = {
+                    'epoch': epoch,
+                    'loss_log': loss_log,
+                    'model_state_dict': encodernet.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict()
+                }
+
+            torch.save(save_dict, args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (args.arch).upper() + "_" + auxval + "_" + str(args.loss) + "_" + str(args.train_batch_size) + "_" + str(args.neg_batch_size) + "_" + str(args.lr) + "_" + str(ckptfreq) + ".pt")            
+            ckptfreq += args.ckptfreq
 
         if 'CONT' in args.model:
             try:
@@ -451,40 +488,40 @@ for epoch in trange(start_epoch, math.ceil(args.nepoch), leave=False):
 
             elif '4STACK' in args.model:
                 pos_reshape_val = traindata.to(device) / div_val
-                query_imgs, pos_imgs, neg_imgs, goal_imgs = torch.split(pos_reshape_val, 2, dim=1)
+                query_imgs, pos_imgs, neg_imgs = torch.split(pos_reshape_val, 2, dim=1)
                 query = encodernet(torch.squeeze(query_imgs).reshape(query_imgs.shape[0]*query_imgs.shape[1], 4, 84, 84))
                 positives = encodernet(torch.squeeze(pos_imgs).reshape(pos_imgs.shape[0]*pos_imgs.shape[1], 4, 84, 84))
                 negatives = encodernet(torch.squeeze(neg_imgs).reshape(neg_imgs.shape[0]*neg_imgs.shape[1], 4, 84, 84))
-                goals = encodernet(torch.squeeze(goal_imgs).reshape(goal_imgs.shape[0]*goal_imgs.shape[1], 4, 84, 84))
+                #goals = encodernet(torch.squeeze(goal_imgs).reshape(goal_imgs.shape[0]*goal_imgs.shape[1], 4, 84, 84))
 
             else:
 
                 pos_reshape_val = traindata.to(device) / div_val            
                 #each of the items on the left is of size Bx2
-                query_imgs, pos_imgs, neg_imgs, goal_imgs = torch.split(pos_reshape_val, 2, dim=1)
+                #embed()
+                query_imgs, pos_imgs, neg_imgs = torch.split(pos_reshape_val, args.sample_batch_size, dim=1)
 
                 
                 query = encodernet(query_imgs.reshape(query_imgs.shape[0]*query_imgs.shape[1], 1, 84, 84))
                 positives = encodernet(pos_imgs.reshape(pos_imgs.shape[0]*pos_imgs.shape[1], 1, 84, 84))
                 negatives = encodernet(neg_imgs.reshape(neg_imgs.shape[0]*neg_imgs.shape[1], 1, 84, 84))
-                goals = encodernet(goal_imgs.reshape(goal_imgs.shape[0]*goal_imgs.shape[1], 1, 84, 84))
+                #goals = encodernet(goal_imgs.reshape(goal_imgs.shape[0]*goal_imgs.shape[1], 1, 84, 84))
             
             # allocat classes for queries, positives, negatives and goals
-            posclasses = torch.arange(start=0, end=query_imgs.shape[0]).repeat(2, 1).T
-            goalclasses = torch.arange(start=query_imgs.shape[0], end=query_imgs.shape[0] + goal_imgs.shape[0]).repeat(2,1).T
-            negclasses = torch.arange(start=query_imgs.shape[0]+goal_imgs.shape[0], end=query_imgs.shape[0] + goal_imgs.shape[0] + neg_imgs.shape[0]*2).reshape(neg_imgs.shape[0], 2)
+            if args.loss == "triplet":
+                posclasses = torch.arange(start=0, end=query_imgs.shape[0]).repeat(args.sample_batch_size, 1).T
+                negclasses = torch.arange(start=query_imgs.shape[0], end=query_imgs.shape[0] + neg_imgs.shape[0]*args.sample_batch_size).reshape(neg_imgs.shape[0], args.sample_batch_size)
 
             if 'NVEP' in args.model:
-                loss = loss_func(torch.cat([query, positives, negatives], axis=0),
-                    torch.cat([posclasses.flatten(), posclasses.flatten(), negclasses.flatten()], axis=0))
-                #loss = loss_func(query, positives, negatives)
+                if args.loss == "triplet":
+                    loss = loss_func(torch.cat([query, positives, negatives], axis=0),
+                        torch.cat([posclasses.flatten(), posclasses.flatten(), negclasses.flatten()], axis=0))
+                else:
+                    loss = loss_func(query, positives, negatives)
 
             else:
+                raise NotImplementedError
 
-                loss = loss_func(torch.cat([query, positives, negatives, goals], axis=0),
-                    torch.cat([posclasses.flatten(), posclasses.flatten(), negclasses.flatten(), goalclasses.flatten()], axis=0))
-            
-            
 
         elif 'VIP' in args.model:
 
@@ -562,27 +599,13 @@ for epoch in trange(start_epoch, math.ceil(args.nepoch), leave=False):
             encodernet.zero_grad()
         loss.backward()
         optimizer.step()
-        if 'VAE' in args.model:
-            auxval = args.kl_weight
-        else:
-            auxval = args.temperature
+
 
 
     print("learning rate:", optimizer.param_groups[0]['lr'])
 
     print(np.mean(np.array(loss_iter)))
-    if 'VAE' in args.model:
-        auxval = str(args.kl_weight)
-    elif 'VIP' in args.model:
-        auxval = str(args.max_len) + '_' + str(args.min_len)
-    elif 'VEP' in args.model:
-        auxval = str(args.max_len) + '_' + str(args.temperature) + '_' + str(args.dthresh) + '_' + str(args.negtype)
-    elif 'TCN' in args.model:
-        auxval = str(args.max_len)
-    elif 'SOM' in args.model:
-        auxval = str(args.sgamma)
-    else:
-        auxval = str(args.temperature)
+
     
 
     if 'DUAL' in args.model:

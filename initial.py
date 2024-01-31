@@ -43,6 +43,7 @@ def initialize(is_train):
         root_dir = "/lab/tmpig14c/kiran/expert_4stack_atari/"
     elif 'ATARI' in args.model and '1CHAN' in args.model:
         root_dir = "/lab/tmpig10f/kiran/expert_1chan_atari/"
+        #root_dir = "/home/tmp/kiran/expert_1chan_atari/"
     else:
         root_dir = "/dev/shm/"
     curr_dir = os.getcwd()
@@ -56,6 +57,19 @@ def initialize(is_train):
     # if something looks wrong.. look at the transform line
     # OLD once changed on 5 june
     # transform = T.Compose([T.Resize(image_size), T.ToTensor()])
+
+    #if "VEP" in args.model:
+    #    if args.sample_batch_size == 2:
+    #        args.train_batch_size = 32
+    #    elif args.sample_batch_size == 3:
+    #        args.train_batch_size = 20
+    #    elif args.sample_batch_size == 4:
+    #        args.train_batch_size = 16
+    #    elif args.sample_batch_size == 5:
+    #        args.train_batch_size = 12
+    #    else:
+    #        raise NotImplementedError
+
 
     transform = T.Compose([T.ToTensor()])
 
@@ -218,7 +232,7 @@ def initialize(is_train):
         div_val = 255.0
 
     elif args.model == "1CHAN_VEP_ATARI" or args.model == "1CHAN_NVEP_ATARI":
-        trainset = VEPContSingleChan.VEPContSingleChan(root_dir=root_dir + args.expname, transform=transform, threshold=args.temperature, max_len = args.max_len, dthresh = args.dthresh, negtype = args.negtype, goal=False)
+        trainset = VEPContSingleChan.VEPContSingleChan(root_dir=root_dir + args.expname, transform=transform, threshold=args.temperature, max_len = args.max_len, sample_batch = args.sample_batch_size, negtype = args.negtype, goal=False)
         negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform, goal=False)
 
         if args.arch == 'resnet':
@@ -234,7 +248,7 @@ def initialize(is_train):
         div_val = 255.0
 
     elif args.model == "3CHAN_VEP_BEOGYM" or args.model == "3CHAN_NVEP_BEOGYM":
-        trainset = VEPContThreeChan.VEPContThreeChan(root_dir=root_dir + args.expname, transform=transform, threshold=args.temperature, max_len = args.max_len, dthresh = args.dthresh, negtype = args.negtype, goal=True)
+        trainset = VEPContThreeChan.VEPContThreeChan(root_dir=root_dir + args.expname, transform=transform, threshold=args.temperature, max_len = args.max_len, sample_batch = args.sample_batch_size, negtype = args.negtype, goal=True)
         negset = NegContThreeChan.NegContThreeChan(root_dir=root_dir + args.expname, transform=transform, goal=True)
 
         if args.arch == 'resnet':
@@ -298,7 +312,7 @@ def initialize(is_train):
         div_val = 255.0
 
     elif args.model == "4STACK_NVEP_ATARI":
-        trainset = VEPContSingleChan.VEPContSingleChan(root_dir=root_dir + args.expname, transform=transform, threshold=args.temperature, max_len = args.max_len, dthresh = args.dthresh, negtype = args.negtype, goal=False)
+        trainset = VEPContSingleChan.VEPContSingleChan(root_dir=root_dir + args.expname, transform=transform, threshold=args.temperature, max_len = args.max_len, sample_batch = args.sample_batch_size, negtype = args.negtype, goal=False)
         negset = NegContSingleChan.NegContSingleChan(root_dir=root_dir + args.expname, transform=transform, goal=False)
 
         if args.arch == 'resnet':
@@ -361,7 +375,7 @@ def initialize(is_train):
         if args.tmodel_path == "":
             model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (
                 args.arch).upper() + "_" + str(args.kl_weight) + "_" + str(args.sgamma) + "_" + str(
-                args.train_batch_size) + "_" + str(args.sample_batch_size) + ".pt"
+                args.train_batch_size) + "_" + str(args.neg_batch_size) + ".pt"
         else:
             model_path = args.save_dir + args.tmodel_path
         checkpoint = torch.load(model_path, map_location="cpu")
@@ -400,15 +414,22 @@ def initialize(is_train):
     # dataiter = iter(testloader)
     # test_images, _ = dataiter.next()
 
+    if 'VEP' not in args.model:
+        assert(args.sample_batch_size == 0)
+    else:
+        assert(args.sample_batch_size > 1)
+        #assert((args.sample_batch_size == 2 and args.train_batch_size == 32) or (args.sample_batch_size == 3 and args.train_batch_size == 20) or (args.sample_batch_size == 4 and args.train_batch_size == 16) or (args.sample_batch_size == 5 and args.train_batch_size == 12))
+        
+
     if is_train and 'CONT' in args.model:
-        negloader, posloader = utils.get_data_STL10(negset, args.train_batch_size, transform, posset, args.sample_batch_size)
+        negloader, posloader = utils.get_data_STL10(negset, args.train_batch_size, transform, posset, args.neg_batch_size)
     
     elif is_train and 'VEP' in args.model or 'VIP' in args.model or 'TCN' in args.model or 'SOM' in args.model:
         
         if 'SOM' in args.model:
-            assert(args.sample_batch_size != 0)
-        if args.sample_batch_size > 0:
-            negloader, trainloader = utils.get_data_STL10(negset, args.sample_batch_size, transform, trainset, args.sample_batch_size)
+            assert(args.neg_batch_size != 0)
+        if args.neg_batch_size > 0:
+            negloader, trainloader = utils.get_data_STL10(negset, args.neg_batch_size, transform, trainset, args.neg_batch_size)
         else:
             negloader, trainloader = utils.get_data_STL10(negset, args.train_batch_size, transform, trainset, args.train_batch_size)
 
@@ -446,7 +467,7 @@ def initialize(is_train):
             #this one will throw a bug!!!!
             model_path = args.save_dir + args.model + "_" + (args.expname).upper() + "_" + (
                 args.arch).upper() + "_" + str(auxval) + "_" + str(args.sgamma) + "_" + str(
-                args.train_batch_size) + "_" + str(args.sample_batch_size) + "_" + str(args.lr) + "_" + str(epoch) + ".pt"
+                args.train_batch_size) + "_" + str(args.neg_batch_size) + "_" + str(args.lr) + "_" + str(epoch) + ".pt"
         else:
             model_path = args.save_dir + args.model_path
         
